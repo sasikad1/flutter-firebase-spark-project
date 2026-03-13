@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // Add this for Firestore
 import 'firebase_options.dart';
 import 'screens/home_screen.dart';
-import 'services/presence_service.dart'; // Presence service import කරන්න
+import 'services/presence_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -37,35 +38,58 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return; // User not logged in
+    if (user == null) return;
 
     switch (state) {
       case AppLifecycleState.resumed:
-      // App came to foreground
         PresenceService().setOnline(true);
         print('📱 App resumed - User online');
         break;
-
       case AppLifecycleState.paused:
-      // App went to background
         PresenceService().setOnline(false);
         print('📱 App paused - User offline');
         break;
-
       case AppLifecycleState.detached:
-      // App is detached
         PresenceService().setOnline(false);
         print('📱 App detached - User offline');
         break;
-
       case AppLifecycleState.inactive:
-      // App is inactive (e.g., phone call)
-      // Don't change status here to avoid flickering
-        break;
-
       case AppLifecycleState.hidden:
-      // iOS only: app is hidden
         break;
+    }
+  }
+
+  // ✅ Check if user has profile, if not create one
+  Future<void> _checkAndCreateUserProfile(User user) async {
+    final firestore = FirebaseFirestore.instance;
+
+    try {
+      final docSnapshot = await firestore.collection('users').doc(user.uid).get();
+
+      if (!docSnapshot.exists) {
+        // Create new user profile with Google data
+        final userData = {
+          'name': user.displayName ?? '',
+          'email': user.email ?? '',
+          'profileImageUrl': user.photoURL ?? '',
+          'bio': '',
+          'homeTown': '',
+          'country': '',
+          'gender': null,
+          'partnerGender': null,
+          'birthDate': null,
+          'interests': [],
+          'showOnlineStatus': true,
+          'showProfile': true,
+          'createdAt': FieldValue.serverTimestamp(),
+          'lastActive': FieldValue.serverTimestamp(),
+        };
+
+        await firestore.collection('users').doc(user.uid).set(userData);
+        print('✅ New user profile created for ${user.email}');
+      }
+    } catch (e) {
+      print('❌ Error checking/creating user profile: $e');
     }
   }
 
@@ -90,11 +114,15 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             );
           }
           if (snapshot.hasData) {
-            // User login වෙන ගමන් online status set කරන්න
-            WidgetsBinding.instance.addPostFrameCallback((_) {
+            final user = snapshot.data!;
+
+            // ✅ Check/create profile when user logs in
+            WidgetsBinding.instance.addPostFrameCallback((_) async {
+              await _checkAndCreateUserProfile(user);
               PresenceService().setOnline(true);
               print('📱 User logged in - Online');
             });
+
             return const HomeScreen();
           }
           return const AuthScreen();
@@ -171,7 +199,7 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
-  // Google Sign-In Function
+  // ✅ Google Sign-In Function
   Future<void> _signInWithGoogle() async {
     setState(() => _isLoading = true);
 
@@ -325,7 +353,7 @@ class _AuthScreenState extends State<AuthScreen> {
                             ),
                           ),
 
-                          // Google Sign-In Button
+                          // ✅ Google Sign-In Button
                           SizedBox(
                             width: double.infinity,
                             height: 50,
@@ -362,7 +390,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
                           // Note about Google Sign-In
                           Text(
-                            'Test Google Sign-In (development only)',
+                            'Sign in with your Google account',
                             style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
                           ),
                         ],
