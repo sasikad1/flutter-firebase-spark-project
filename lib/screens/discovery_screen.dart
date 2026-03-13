@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'profile_details_screen.dart';
-import '../services/block_service.dart'; // Import block service
+import '../services/block_service.dart';
 
 class DiscoveryScreen extends StatefulWidget {
   const DiscoveryScreen({super.key});
@@ -26,7 +26,6 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
     _loadBlockedUsers();
   }
 
-  // Load blocked users
   Future<void> _loadBlockedUsers() async {
     final blockedIds = await _blockService.getBlockedUserIdsSet();
     if (mounted) {
@@ -36,12 +35,10 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
     }
   }
 
-  // Get liked and passed user IDs
   Future<Set<String>> _getLikedAndPassedUserIds(String currentUserId) async {
     final Set<String> userIds = {};
 
     try {
-      // Get liked users
       final likesSnapshot = await _firestore
           .collection('likes')
           .where('fromUserId', isEqualTo: currentUserId)
@@ -52,7 +49,6 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
         userIds.add(data['toUserId']);
       }
 
-      // Get passed users
       final passesSnapshot = await _firestore
           .collection('passes')
           .where('fromUserId', isEqualTo: currentUserId)
@@ -86,7 +82,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
       body: StreamBuilder<QuerySnapshot>(
         stream: _firestore
             .collection('users')
-            .where('name', isNotEqualTo: null) // name තියෙන users විතරක්
+            .where('name', isNotEqualTo: null)
             .snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
@@ -104,8 +100,15 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
             return const Center(child: Text('Please login again'));
           }
 
+          // ✅ Filter out users who have showProfile = false
+          final visibleUsers = users.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final showProfile = data['showProfile'] ?? true; // Default to true
+            return showProfile == true;
+          }).toList();
+
           // Current userව filter කරන්න
-          final otherUsers = users.where((doc) => doc.id != currentUserId).toList();
+          final otherUsers = visibleUsers.where((doc) => doc.id != currentUserId).toList();
 
           if (otherUsers.isEmpty) {
             return Center(
@@ -140,7 +143,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
               // Filter out users that current user already liked, passed, or blocked
               final availableUsers = otherUsers
                   .where((doc) => !interactedUserIds.contains(doc.id))
-                  .where((doc) => !_blockedUserIds.contains(doc.id)) // Filter out blocked users
+                  .where((doc) => !_blockedUserIds.contains(doc.id))
                   .toList();
 
               if (availableUsers.isEmpty) {
@@ -217,7 +220,6 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
     );
   }
 
-  // User Card එක හදන method එක (Online Status එක්ක)
   Widget _buildUserCard(Map<String, dynamic> userData, String userId) {
     final name = userData['name'] ?? 'Unknown';
     final bio = userData['bio'] ?? '';
@@ -226,11 +228,9 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
         ? (userData['birthDate'] as Timestamp).toDate()
         : null;
 
-    // Online status data
     final isOnline = userData['isOnline'] ?? false;
-    final showOnlineStatus = userData['showOnlineStatus'] ?? true; // Default to true if not set
+    final showOnlineStatus = userData['showOnlineStatus'] ?? true;
 
-    // Age calculate කරන්න
     String age = '';
     if (birthDate != null) {
       final now = DateTime.now();
@@ -238,12 +238,10 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
       age = '${(difference.inDays / 365).floor()}';
     }
 
-    // Profile image URL
     final profileImageUrl = userData['profileImageUrl'];
 
     return GestureDetector(
       onTap: () {
-        // Profile Details Screen එකට යන්න
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -253,7 +251,6 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
             ),
           ),
         ).then((_) {
-          // Refresh blocked users when returning from profile
           _loadBlockedUsers();
         });
       },
@@ -263,7 +260,6 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Profile Image with Online Status Indicator
             Expanded(
               child: Stack(
                 children: [
@@ -285,7 +281,6 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                     )
                         : null,
                   ),
-                  // Online Status Dot (top right corner)
                   if (showOnlineStatus)
                     Positioned(
                       top: 8,
@@ -304,13 +299,11 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
               ),
             ),
 
-            // User Info
             Padding(
               padding: const EdgeInsets.all(8.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Name and Age with Online Status
                   Row(
                     children: [
                       Expanded(
@@ -321,7 +314,6 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      // Online/Offline text (optional - small indicator)
                       if (showOnlineStatus)
                         Text(
                           isOnline ? '🟢' : '⚪',
@@ -330,7 +322,6 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                     ],
                   ),
 
-                  // Location
                   if (country.isNotEmpty)
                     Row(
                       children: [
@@ -347,7 +338,6 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                       ],
                     ),
 
-                  // Bio
                   if (bio.isNotEmpty)
                     Text(
                       bio,
@@ -364,7 +354,6 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
     );
   }
 
-  // Filter Dialog එක
   void _showFilterDialog() {
     showDialog(
       context: context,
@@ -375,7 +364,6 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
             content: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Gender Filter
                 DropdownButtonFormField<String>(
                   decoration: const InputDecoration(labelText: 'Gender'),
                   value: _selectedGender,
@@ -394,7 +382,6 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Age Range Filter
                 Text('Age Range: ${_ageRange.start.round()} - ${_ageRange.end.round()}'),
                 RangeSlider(
                   values: _ageRange,
@@ -421,14 +408,14 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                     _ageRange = const RangeValues(18, 50);
                   });
                   Navigator.pop(context);
-                  this.setState(() {}); // Refresh the screen
+                  this.setState(() {});
                 },
                 child: const Text('Clear'),
               ),
               ElevatedButton(
                 onPressed: () {
                   Navigator.pop(context);
-                  this.setState(() {}); // Refresh the screen with new filters
+                  this.setState(() {});
                 },
                 child: const Text('Apply'),
               ),
