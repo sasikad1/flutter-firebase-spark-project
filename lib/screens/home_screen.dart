@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'profile_screen.dart';
 import 'discovery_screen.dart';
-import 'matches_screen.dart'; // මේක add කරන්න
+import 'matches_screen.dart';
+import 'settings_screen.dart';  // මේක add කරන්න
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -12,7 +13,7 @@ class HomeScreen extends StatelessWidget {
     final user = FirebaseAuth.instance.currentUser!;
 
     return DefaultTabController(
-      length: 4, // Home, Discover, Matches, Profile tabs 4ක්
+      length: 5, // Home, Discover, Matches, Profile, Settings tabs
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Spark'),
@@ -26,12 +27,13 @@ class HomeScreen extends StatelessWidget {
               indicatorWeight: 4,
               labelColor: Colors.white,
               unselectedLabelColor: Colors.white70,
-              isScrollable: true, // tabs ගොඩක් නිසා scrollable කරන්න
+              isScrollable: true,
               tabs: [
                 Tab(icon: Icon(Icons.home), text: 'Home'),
                 Tab(icon: Icon(Icons.people), text: 'Discover'),
-                Tab(icon: Icon(Icons.favorite), text: 'Matches'), // අලුත් tab එක
+                Tab(icon: Icon(Icons.favorite), text: 'Matches'),
                 Tab(icon: Icon(Icons.person), text: 'Profile'),
+                Tab(icon: Icon(Icons.settings), text: 'Settings'), // අලුත් tab එක
               ],
             ),
           ),
@@ -57,6 +59,9 @@ class HomeScreen extends StatelessWidget {
 
             // Profile Tab
             const ProfileScreen(),
+
+            // Settings Tab
+            const SettingsScreen(),
           ],
         ),
       ),
@@ -97,8 +102,7 @@ class HomeScreen extends StatelessWidget {
           const SizedBox(height: 30),
           ElevatedButton(
             onPressed: () {
-              // Discover tab එකට යන්න
-              DefaultTabController.of(context).animateTo(1);
+              DefaultTabController.of(context)?.animateTo(1);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.pink,
