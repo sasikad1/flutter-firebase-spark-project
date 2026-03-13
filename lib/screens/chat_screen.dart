@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
-import '../services/block_service.dart'; // Add block service
+import '../services/block_service.dart';
 import '../services/presence_service.dart';
 
 class ChatScreen extends StatefulWidget {
@@ -44,7 +44,6 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
-  // Check if user is blocked
   Future<void> _checkBlockStatus() async {
     final isBlocked = await _blockService.isUserBlocked(widget.otherUserId);
     if (mounted) {
@@ -54,11 +53,9 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  // Block user from chat
   Future<void> _blockUser() async {
     final userName = widget.otherUserData['name'] ?? 'this user';
 
-    // Show confirmation dialog
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -66,10 +63,7 @@ class _ChatScreenState extends State<ChatScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'Block User',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
+            const Text('Block User', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             Text('Are you sure you want to block $userName?'),
             const SizedBox(height: 8),
@@ -80,16 +74,10 @@ class _ChatScreenState extends State<ChatScreen> {
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
             child: const Text('Block'),
           ),
         ],
@@ -98,51 +86,29 @@ class _ChatScreenState extends State<ChatScreen> {
 
     if (confirm == true) {
       setState(() => _isLoading = true);
-
       final success = await _blockService.blockUser(widget.otherUserId);
-
       if (success && mounted) {
-        setState(() {
-          _isBlocked = true;
-          _isLoading = false;
-        });
-
+        setState(() { _isBlocked = true; _isLoading = false; });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('User blocked successfully'),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-          ),
+          const SnackBar(content: Text('User blocked successfully'), backgroundColor: Colors.green, behavior: SnackBarBehavior.floating),
         );
-
-        // Go back to matches screen
         Navigator.pop(context);
       } else {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to block user'),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-          ),
+          const SnackBar(content: Text('Failed to block user'), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating),
         );
       }
     }
   }
 
-  // Send message
   Future<void> _sendMessage() async {
     if (_isBlocked) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Cannot send messages to blocked user'),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-        ),
+        const SnackBar(content: Text('Cannot send messages to blocked user'), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating),
       );
       return;
     }
-
     if (_messageController.text.trim().isEmpty) return;
 
     final currentUserId = _auth.currentUser?.uid;
@@ -152,7 +118,6 @@ class _ChatScreenState extends State<ChatScreen> {
     _messageController.clear();
 
     try {
-      // Add message to messages subcollection
       await _firestore
           .collection('chats')
           .doc(widget.matchId)
@@ -164,21 +129,16 @@ class _ChatScreenState extends State<ChatScreen> {
         'type': 'text',
       });
 
-      // Update last message in match document
       await _firestore.collection('matches').doc(widget.matchId).update({
         'lastMessage': messageText,
         'lastMessageTime': FieldValue.serverTimestamp(),
       });
 
-      // Scroll to bottom
       _scrollToBottom();
     } catch (e) {
       print('Error sending message: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error sending message: $e'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text('Error sending message: $e'), backgroundColor: Colors.red),
       );
     }
   }
@@ -209,15 +169,11 @@ class _ChatScreenState extends State<ChatScreen> {
               children: [
                 CircleAvatar(
                   radius: 20,
-                  backgroundImage: otherUserPhoto != null
-                      ? NetworkImage(otherUserPhoto)
-                      : null,
+                  backgroundImage: otherUserPhoto != null ? NetworkImage(otherUserPhoto) : null,
                   backgroundColor: Colors.pink.shade100,
-                  child: otherUserPhoto == null
-                      ? const Icon(Icons.person, size: 20, color: Colors.pink)
-                      : null,
+                  child: otherUserPhoto == null ? const Icon(Icons.person, size: 20, color: Colors.pink) : null,
                 ),
-                // Online status indicator
+                // ✅ Online status indicator (respects privacy)
                 StreamBuilder<DocumentSnapshot>(
                   stream: _firestore.collection('users').doc(widget.otherUserId).snapshots(),
                   builder: (context, snapshot) {
@@ -225,6 +181,10 @@ class _ChatScreenState extends State<ChatScreen> {
 
                     final data = snapshot.data!.data() as Map<String, dynamic>?;
                     final isOnline = data?['isOnline'] ?? false;
+                    final showOnlineStatus = data?['showOnlineStatus'] ?? true; // Get privacy setting
+
+                    // Don't show dot if user disabled online status
+                    if (!showOnlineStatus) return const SizedBox();
 
                     return Positioned(
                       bottom: 0,
@@ -250,11 +210,8 @@ class _ChatScreenState extends State<ChatScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    otherUserName,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  // Online/Offline/Last seen text
+                  Text(otherUserName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  // Online/Offline/Last seen text (respects privacy)
                   StreamBuilder<DocumentSnapshot>(
                     stream: _firestore.collection('users').doc(widget.otherUserId).snapshots(),
                     builder: (context, snapshot) {
@@ -265,6 +222,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       final lastSeen = data?['lastSeen'] as Timestamp?;
                       final showOnlineStatus = data?['showOnlineStatus'] ?? true;
 
+                      // Don't show any status if user disabled it
                       if (!showOnlineStatus) {
                         return const SizedBox();
                       }
@@ -286,7 +244,6 @@ class _ChatScreenState extends State<ChatScreen> {
         backgroundColor: Colors.pink,
         foregroundColor: Colors.white,
         actions: [
-          // Block button (only show if not already blocked)
           if (!_isBlocked)
             IconButton(
               icon: const Icon(Icons.block),
@@ -299,7 +256,6 @@ class _ChatScreenState extends State<ChatScreen> {
           ? const Center(child: CircularProgressIndicator())
           : Column(
         children: [
-          // Blocked message (if blocked)
           if (_isBlocked)
             Container(
               padding: const EdgeInsets.all(12),
@@ -323,7 +279,6 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ),
 
-          // Messages List
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: _firestore
@@ -336,13 +291,10 @@ class _ChatScreenState extends State<ChatScreen> {
                 if (snapshot.hasError) {
                   return Center(child: Text('Error: ${snapshot.error}'));
                 }
-
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
-
                 final messages = snapshot.data?.docs ?? [];
-
                 if (messages.isEmpty) {
                   return Center(
                     child: Column(
@@ -350,25 +302,14 @@ class _ChatScreenState extends State<ChatScreen> {
                       children: [
                         Icon(Icons.chat_bubble_outline, size: 80, color: Colors.grey.shade400),
                         const SizedBox(height: 16),
-                        Text(
-                          'No messages yet',
-                          style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
-                        ),
+                        Text('No messages yet', style: TextStyle(fontSize: 18, color: Colors.grey.shade600)),
                         const SizedBox(height: 8),
-                        Text(
-                          'Say hi! 👋',
-                          style: TextStyle(color: Colors.grey.shade500),
-                        ),
+                        Text('Say hi! 👋', style: TextStyle(color: Colors.grey.shade500)),
                       ],
                     ),
                   );
                 }
-
-                // Scroll to bottom when new messages arrive
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  _scrollToBottom();
-                });
-
+                WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
                 return ListView.builder(
                   controller: _scrollController,
                   padding: const EdgeInsets.all(16),
@@ -376,7 +317,6 @@ class _ChatScreenState extends State<ChatScreen> {
                   itemBuilder: (context, index) {
                     final messageData = messages[index].data() as Map<String, dynamic>;
                     final isMe = messageData['senderId'] == _auth.currentUser?.uid;
-
                     return _buildMessageBubble(messageData, isMe);
                   },
                 );
@@ -384,13 +324,10 @@ class _ChatScreenState extends State<ChatScreen> {
             ),
           ),
 
-          // Message Input (disabled if blocked)
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Theme.of(context).brightness == Brightness.light
-                  ? Colors.white
-                  : const Color(0xFF1E1E1E),
+              color: Theme.of(context).brightness == Brightness.light ? Colors.white : const Color(0xFF1E1E1E),
               boxShadow: [
                 BoxShadow(
                   offset: const Offset(0, -2),
@@ -404,11 +341,9 @@ class _ChatScreenState extends State<ChatScreen> {
                 Expanded(
                   child: TextField(
                     controller: _messageController,
-                    enabled: !_isBlocked, // Disable if blocked
+                    enabled: !_isBlocked,
                     decoration: InputDecoration(
-                      hintText: _isBlocked
-                          ? 'Cannot send messages'
-                          : 'Type a message...',
+                      hintText: _isBlocked ? 'Cannot send messages' : 'Type a message...',
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(24),
                         borderSide: BorderSide.none,
@@ -419,10 +354,7 @@ class _ChatScreenState extends State<ChatScreen> {
                           : (Theme.of(context).brightness == Brightness.light
                           ? Colors.grey.shade100
                           : const Color(0xFF2C2C2C)),
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     ),
                     maxLines: null,
                     textInputAction: TextInputAction.send,
@@ -445,7 +377,6 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  // Message Bubble Builder
   Widget _buildMessageBubble(Map<String, dynamic> messageData, bool isMe) {
     final text = messageData['text'] ?? '';
     final timestamp = messageData['timestamp'] != null
@@ -456,7 +387,6 @@ class _ChatScreenState extends State<ChatScreen> {
     if (timestamp != null) {
       final now = DateTime.now();
       final difference = now.difference(timestamp);
-
       if (difference.inDays > 0) {
         timeString = DateFormat('MMM d').format(timestamp);
       } else if (difference.inHours > 0) {
@@ -473,8 +403,7 @@ class _ChatScreenState extends State<ChatScreen> {
       child: Row(
         mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
         children: [
-          if (!isMe)
-            const SizedBox(width: 8),
+          if (!isMe) const SizedBox(width: 8),
           Flexible(
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -490,26 +419,17 @@ class _ChatScreenState extends State<ChatScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(
-                    text,
-                    style: TextStyle(
-                      color: isMe ? Colors.white : Colors.black87,
-                    ),
-                  ),
+                  Text(text, style: TextStyle(color: isMe ? Colors.white : Colors.black87)),
                   const SizedBox(height: 4),
                   Text(
                     timeString,
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: isMe ? Colors.white70 : Colors.grey.shade600,
-                    ),
+                    style: TextStyle(fontSize: 10, color: isMe ? Colors.white70 : Colors.grey.shade600),
                   ),
                 ],
               ),
             ),
           ),
-          if (isMe)
-            const SizedBox(width: 8),
+          if (isMe) const SizedBox(width: 8),
         ],
       ),
     );
