@@ -1,0 +1,27 @@
+# .gitignore file එක create කරන්න
+cat > .gitignore << 'EOF'
+# Flutter/Dart
+.dart_tool/
+build/
+*.log
+*.pid
+*.lock
+*.swp
+.DS_Store
+.atom/
+.branch
+.buildconfig
+*.iml
+*.ipr
+*.iws
+/.idea/
+
+# Firebase
+.firebase/
+*.json
+*.key
+*.jks
+google-services.json
+GoogleService-Info.plist
+firebase_options.dart  # මේක add කරන්න එපා public repo එකට!
+EOF
