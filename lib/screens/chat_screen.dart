@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import '../services/presence_service.dart'; // Presence service import කරන්න
 
 class ChatScreen extends StatefulWidget {
   final String matchId;
@@ -95,18 +96,84 @@ class _ChatScreenState extends State<ChatScreen> {
       appBar: AppBar(
         title: Row(
           children: [
-            CircleAvatar(
-              radius: 20,
-              backgroundImage: otherUserPhoto != null
-                  ? NetworkImage(otherUserPhoto)
-                  : null,
-              backgroundColor: Colors.pink.shade100,
-              child: otherUserPhoto == null
-                  ? const Icon(Icons.person, size: 20, color: Colors.pink)
-                  : null,
+            // Profile picture with online indicator
+            Stack(
+              children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundImage: otherUserPhoto != null
+                      ? NetworkImage(otherUserPhoto)
+                      : null,
+                  backgroundColor: Colors.pink.shade100,
+                  child: otherUserPhoto == null
+                      ? const Icon(Icons.person, size: 20, color: Colors.pink)
+                      : null,
+                ),
+                // Online status indicator (StreamBuilder)
+                StreamBuilder<DocumentSnapshot>(
+                  stream: _firestore.collection('users').doc(widget.otherUserId).snapshots(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) return const SizedBox();
+
+                    final data = snapshot.data!.data() as Map<String, dynamic>?;
+                    final isOnline = data?['isOnline'] ?? false;
+
+                    return Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
+                          color: isOnline ? Colors.green : Colors.grey,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ],
             ),
             const SizedBox(width: 12),
-            Text(otherUserName),
+
+            // User name and online status text
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    otherUserName,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  // Online/Offline/Last seen text
+                  StreamBuilder<DocumentSnapshot>(
+                    stream: _firestore.collection('users').doc(widget.otherUserId).snapshots(),
+                    builder: (context, snapshot) {
+                      if (!snapshot.hasData) return const SizedBox();
+
+                      final data = snapshot.data!.data() as Map<String, dynamic>?;
+                      final isOnline = data?['isOnline'] ?? false;
+                      final lastSeen = data?['lastSeen'] as Timestamp?;
+                      final showOnlineStatus = data?['showOnlineStatus'] ?? true;
+
+                      // If user disabled showing online status, don't show anything
+                      if (!showOnlineStatus) {
+                        return const SizedBox();
+                      }
+
+                      return Text(
+                        isOnline ? 'Online' : PresenceService().getLastSeenText(lastSeen),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isOnline ? Colors.green : Colors.grey.shade400,
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
         backgroundColor: Colors.pink,
@@ -179,12 +246,14 @@ class _ChatScreenState extends State<ChatScreen> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: Theme.of(context).brightness == Brightness.light
+                  ? Colors.white
+                  : const Color(0xFF1E1E1E),
               boxShadow: [
                 BoxShadow(
                   offset: const Offset(0, -2),
                   blurRadius: 4,
-                  color: Colors.grey.shade200,
+                  color: Colors.grey.shade200.withValues(alpha:0.5),
                 ),
               ],
             ),
@@ -200,7 +269,9 @@ class _ChatScreenState extends State<ChatScreen> {
                         borderSide: BorderSide.none,
                       ),
                       filled: true,
-                      fillColor: Colors.grey.shade100,
+                      fillColor: Theme.of(context).brightness == Brightness.light
+                          ? Colors.grey.shade100
+                          : const Color(0xFF2C2C2C),
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
                         vertical: 8,

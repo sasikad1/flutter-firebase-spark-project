@@ -190,7 +190,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
     );
   }
 
-  // User Card එක හදන method එක
+  // User Card එක හදන method එක (Online Status එක්ක)
   Widget _buildUserCard(Map<String, dynamic> userData, String userId) {
     final name = userData['name'] ?? 'Unknown';
     final bio = userData['bio'] ?? '';
@@ -198,6 +198,10 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
     final birthDate = userData['birthDate'] != null
         ? (userData['birthDate'] as Timestamp).toDate()
         : null;
+
+    // Online status data
+    final isOnline = userData['isOnline'] ?? false;
+    final showOnlineStatus = userData['showOnlineStatus'] ?? true; // Default to true if not set
 
     // Age calculate කරන්න
     String age = '';
@@ -231,23 +235,42 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
           children: [
             // Profile Image
             Expanded(
-              child: Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                  image: profileImageUrl != null
-                      ? DecorationImage(
-                    image: NetworkImage(profileImageUrl),
-                    fit: BoxFit.cover,
-                  )
-                      : null,
-                  color: Colors.grey.shade200,
-                ),
-                child: profileImageUrl == null
-                    ? Center(
-                  child: Icon(Icons.person, size: 50, color: Colors.grey.shade400),
-                )
-                    : null,
+              child: Stack(
+                children: [
+                  Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                      image: profileImageUrl != null
+                          ? DecorationImage(
+                        image: NetworkImage(profileImageUrl),
+                        fit: BoxFit.cover,
+                      )
+                          : null,
+                      color: Colors.grey.shade200,
+                    ),
+                    child: profileImageUrl == null
+                        ? Center(
+                      child: Icon(Icons.person, size: 50, color: Colors.grey.shade400),
+                    )
+                        : null,
+                  ),
+                  // Online Status Indicator (top right corner)
+                  if (showOnlineStatus)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
+                          color: isOnline ? Colors.green : Colors.grey,
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
 
@@ -257,12 +280,27 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    age.isNotEmpty ? '$name, $age' : name,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  // Name and Age with Online Status
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          age.isNotEmpty ? '$name, $age' : name,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      // Online/Offline text (optional - small text)
+                      if (showOnlineStatus)
+                        Text(
+                          isOnline ? '🟢' : '⚪',
+                          style: const TextStyle(fontSize: 10),
+                        ),
+                    ],
                   ),
+
+                  // Location
                   if (country.isNotEmpty)
                     Row(
                       children: [
@@ -278,6 +316,8 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                         ),
                       ],
                     ),
+
+                  // Bio
                   if (bio.isNotEmpty)
                     Text(
                       bio,
@@ -308,7 +348,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                 // Gender Filter
                 DropdownButtonFormField<String>(
                   decoration: const InputDecoration(labelText: 'Gender'),
-                  initialValue: _selectedGender,
+                  value: _selectedGender,
                   items: const [
                     DropdownMenuItem(value: null, child: Text('All')),
                     DropdownMenuItem(value: 'Male', child: Text('Male')),

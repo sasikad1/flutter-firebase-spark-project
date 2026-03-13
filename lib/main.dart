@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'firebase_options.dart';
 import 'screens/home_screen.dart';
+import 'services/presence_service.dart'; // Presence service import කරන්න
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,8 +14,60 @@ void main() async {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return; // User not logged in
+
+    switch (state) {
+      case AppLifecycleState.resumed:
+      // App came to foreground
+        PresenceService().setOnline(true);
+        print('📱 App resumed - User online');
+        break;
+
+      case AppLifecycleState.paused:
+      // App went to background
+        PresenceService().setOnline(false);
+        print('📱 App paused - User offline');
+        break;
+
+      case AppLifecycleState.detached:
+      // App is detached
+        PresenceService().setOnline(false);
+        print('📱 App detached - User offline');
+        break;
+
+      case AppLifecycleState.inactive:
+      // App is inactive (e.g., phone call)
+      // Don't change status here to avoid flickering
+        break;
+
+      case AppLifecycleState.hidden:
+      // iOS only: app is hidden
+        break;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,6 +90,11 @@ class MyApp extends StatelessWidget {
             );
           }
           if (snapshot.hasData) {
+            // User login වෙන ගමන් online status set කරන්න
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              PresenceService().setOnline(true);
+              print('📱 User logged in - Online');
+            });
             return const HomeScreen();
           }
           return const AuthScreen();
@@ -91,10 +149,15 @@ class _AuthScreenState extends State<AuthScreen> {
       String message = 'Authentication failed';
       if (e.code == 'weak-password') {
         message = 'The password provided is too weak.';
-      } else if (e.code == 'email-already-in-use') message = 'An account already exists with that email.';
-      else if (e.code == 'user-not-found') message = 'No user found with that email.';
-      else if (e.code == 'wrong-password') message = 'Wrong password provided.';
-      else if (e.code == 'invalid-email') message = 'The email address is badly formatted.';
+      } else if (e.code == 'email-already-in-use') {
+        message = 'An account already exists with that email.';
+      } else if (e.code == 'user-not-found') {
+        message = 'No user found with that email.';
+      } else if (e.code == 'wrong-password') {
+        message = 'Wrong password provided.';
+      } else if (e.code == 'invalid-email') {
+        message = 'The email address is badly formatted.';
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message), backgroundColor: Colors.red),
@@ -262,7 +325,7 @@ class _AuthScreenState extends State<AuthScreen> {
                             ),
                           ),
 
-                          // Google Sign-In Button (without logo)
+                          // Google Sign-In Button
                           SizedBox(
                             width: double.infinity,
                             height: 50,
@@ -276,7 +339,6 @@ class _AuthScreenState extends State<AuthScreen> {
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  // Simple Google "G" icon using Text
                                   Container(
                                     margin: const EdgeInsets.only(right: 12),
                                     child: const Text(
