@@ -14,10 +14,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final _firestore = FirebaseFirestore.instance;
 
   bool _isLoading = false;
-  bool _notificationsEnabled = true;
-  bool _matchNotifications = true;
-  bool _messageNotifications = true;
-  bool _likeNotifications = true;
   bool _showOnlineStatus = true;
   bool _showProfile = true;
 
@@ -37,16 +33,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (doc.exists) {
         final data = doc.data()!;
         setState(() {
-          _notificationsEnabled = data['notificationsEnabled'] ?? true;
-          _matchNotifications = data['matchNotifications'] ?? true;
-          _messageNotifications = data['messageNotifications'] ?? true;
-          _likeNotifications = data['likeNotifications'] ?? true;
           _showOnlineStatus = data['showOnlineStatus'] ?? true;
           _showProfile = data['showProfile'] ?? true;
         });
       }
     } catch (e) {
       print('Error loading settings: $e');
+      _showErrorSnackBar('Failed to load settings');
     }
   }
 
@@ -59,75 +52,180 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     try {
       await _firestore.collection('users').doc(userId).update({
-        'notificationsEnabled': _notificationsEnabled,
-        'matchNotifications': _matchNotifications,
-        'messageNotifications': _messageNotifications,
-        'likeNotifications': _likeNotifications,
         'showOnlineStatus': _showOnlineStatus,
         'showProfile': _showProfile,
         'settingsUpdatedAt': FieldValue.serverTimestamp(),
       });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Settings saved successfully!'),
-          backgroundColor: Colors.green,
-        ),
-      );
+      if (mounted) {
+        _showSuccessSnackBar('Settings saved successfully!');
+      }
     } catch (e) {
       print('Error saving settings: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Error saving settings: $e'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      if (mounted) {
+        _showErrorSnackBar('Failed to save settings');
+      }
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // Change Password Dialog
+  // Helper method to show error snackbar
+  void _showErrorSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  // Helper method to show success snackbar
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
+  // 🔐 Password Change Function with Firebase Auth
+  Future<void> _changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    setState(() => _isLoading = true);
+
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('No user logged in');
+
+      // Re-authenticate user first (required for sensitive operations)
+      final credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: currentPassword,
+      );
+
+      await user.reauthenticateWithCredential(credential);
+
+      // Change password
+      await user.updatePassword(newPassword);
+
+      if (mounted) {
+        _showSuccessSnackBar('Password changed successfully!');
+      }
+
+    } on FirebaseAuthException catch (e) {
+      String message = 'Password change failed';
+
+      switch (e.code) {
+        case 'wrong-password':
+          message = 'Current password is incorrect';
+          break;
+        case 'weak-password':
+          message = 'New password is too weak (min 6 characters)';
+          break;
+        case 'requires-recent-login':
+          message = 'Please log in again to change password';
+          break;
+        default:
+          message = 'Error: ${e.message}';
+      }
+
+      if (mounted) {
+        _showErrorSnackBar(message);
+      }
+    } catch (e) {
+      if (mounted) {
+        _showErrorSnackBar('An unexpected error occurred');
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // Change Password Dialog with Validation
   Future<void> _showChangePasswordDialog() async {
     final currentPasswordController = TextEditingController();
     final newPasswordController = TextEditingController();
     final confirmPasswordController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
 
     return showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Change Password'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: currentPasswordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Current Password',
-                  border: OutlineInputBorder(),
+        content: Form(
+          key: formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Current Password
+                TextFormField(
+                  controller: currentPasswordController,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Current Password',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.lock_outline),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter current password';
+                    }
+                    return null;
+                  },
                 ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: newPasswordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'New Password',
-                  border: OutlineInputBorder(),
+                const SizedBox(height: 16),
+
+                // New Password
+                TextFormField(
+                  controller: newPasswordController,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'New Password',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.lock),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please enter new password';
+                    }
+                    if (value.length < 6) {
+                      return 'Password must be at least 6 characters';
+                    }
+                    return null;
+                  },
                 ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: confirmPasswordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  labelText: 'Confirm New Password',
-                  border: OutlineInputBorder(),
+                const SizedBox(height: 16),
+
+                // Confirm New Password
+                TextFormField(
+                  controller: confirmPasswordController,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Confirm New Password',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.lock_outline),
+                  ),
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Please confirm new password';
+                    }
+                    if (value != newPasswordController.text) {
+                      return 'Passwords do not match';
+                    }
+                    return null;
+                  },
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
         actions: [
@@ -137,60 +235,233 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              // TODO: Implement password change
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Password changed successfully!'),
-                  backgroundColor: Colors.green,
-                ),
-              );
+              if (formKey.currentState?.validate() ?? false) {
+                Navigator.pop(context); // Close dialog
+
+                // Call password change function
+                await _changePassword(
+                  currentPassword: currentPasswordController.text.trim(),
+                  newPassword: newPasswordController.text.trim(),
+                );
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.pink,
               foregroundColor: Colors.white,
             ),
-            child: const Text('Change'),
+            child: const Text('Change Password'),
           ),
         ],
       ),
     );
   }
 
-  // Delete Account Dialog
+  // Delete Account Dialog with Double Confirmation
   Future<void> _showDeleteAccountDialog() async {
+    final passwordController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    bool _firstStepComplete = false;
+
     return showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Account'),
-        content: const Text(
-          'Are you sure you want to delete your account? This action cannot be undone and all your data will be permanently removed.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              // TODO: Implement account deletion
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Account deleted successfully'),
-                  backgroundColor: Colors.red,
+      barrierDismissible: false, // Prevent accidental dismissal
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.red,
+                size: 40,
+              ),
+              content: Container(
+                width: double.maxFinite,
+                child: !_firstStepComplete
+                    ? Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Delete Account',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Are you absolutely sure? This action:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text('• Cannot be undone'),
+                    const Text('• Permanently removes all your data'),
+                    const Text('• You will lose all matches and messages'),
+                    const SizedBox(height: 16),
+                    ElevatedButton(
+                      onPressed: () {
+                        setState(() {
+                          _firstStepComplete = true;
+                        });
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size(double.infinity, 45),
+                      ),
+                      child: const Text('I Understand, Continue'),
+                    ),
+                  ],
+                )
+                    : Form(
+                  key: formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text(
+                        'Final Step',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        'Enter your password to confirm account deletion:',
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: passwordController,
+                        obscureText: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Password',
+                          border: OutlineInputBorder(),
+                          prefixIcon: Icon(Icons.lock),
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return 'Please enter your password';
+                          }
+                          return null;
+                        },
+                        autofocus: true,
+                      ),
+                    ],
+                  ),
                 ),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Delete'),
-          ),
-        ],
+              ),
+              actions: !_firstStepComplete
+                  ? [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+              ]
+                  : [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    if (formKey.currentState?.validate() ?? false) {
+                      Navigator.pop(context); // Close dialog
+                      await _deleteAccount(passwordController.text.trim());
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Permanently Delete'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // Delete Account Function with Comprehensive Error Handling
+  Future<void> _deleteAccount(String password) async {
+    // Show loading dialog
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
       ),
     );
+
+    try {
+      final user = _auth.currentUser;
+      if (user == null) throw Exception('No user logged in');
+
+      // Step 1: Re-authenticate before deletion
+      final credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: password,
+      );
+
+      await user.reauthenticateWithCredential(credential);
+
+      // Step 2: Delete user data from Firestore
+      await _firestore.collection('users').doc(user.uid).delete();
+
+      // Step 3: Delete user from Firebase Auth
+      await user.delete();
+
+      // Close loading dialog
+      if (mounted) Navigator.pop(context);
+
+      // Step 4: Sign out
+      await _auth.signOut();
+
+      // Show success message (after navigation)
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Account deleted successfully'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+
+    } on FirebaseAuthException catch (e) {
+      // Close loading dialog
+      if (mounted) Navigator.pop(context);
+
+      String message = 'Account deletion failed';
+
+      switch (e.code) {
+        case 'wrong-password':
+          message = 'Incorrect password. Please try again.';
+          break;
+        case 'requires-recent-login':
+          message = 'For security, please log out and log in again before deleting your account.';
+          break;
+        case 'network-request-failed':
+          message = 'Network error. Please check your connection.';
+          break;
+        default:
+          message = 'Error: ${e.message}';
+      }
+
+      if (mounted) {
+        _showErrorSnackBar(message);
+      }
+    } catch (e) {
+      // Close loading dialog
+      if (mounted) Navigator.pop(context);
+
+      if (mounted) {
+        _showErrorSnackBar('An unexpected error occurred. Please try again.');
+      }
+    }
   }
 
   @override
@@ -203,173 +474,139 @@ class _SettingsScreenState extends State<SettingsScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.save),
-            onPressed: _saveSettings,
+            onPressed: _isLoading ? null : _saveSettings,
           ),
         ],
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
+      body: Stack(
         children: [
-          // Profile Section
-          _buildSectionHeader('Profile', Icons.person),
-          ListTile(
-            leading: CircleAvatar(
-              backgroundColor: Colors.pink.shade100,
-              child: const Icon(Icons.person, color: Colors.pink),
-            ),
-            title: const Text('Edit Profile'),
-            subtitle: const Text('Change your name, bio, photos'),
-            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-            onTap: () {
-              // Navigate to profile screen
-              DefaultTabController.of(context)?.animateTo(3);
-            },
-          ),
-          const Divider(),
+          ListView(
+            children: [
+              // Profile Section
+              _buildSectionHeader('Profile', Icons.person),
+              ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: Colors.pink.shade100,
+                  child: const Icon(Icons.person, color: Colors.pink),
+                ),
+                title: const Text('Edit Profile'),
+                subtitle: const Text('Change your name, bio, photos'),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () {
+                  // Navigate to profile tab
+                  DefaultTabController.of(context)?.animateTo(3);
+                },
+              ),
+              const Divider(),
 
-          // Notifications Section
-          _buildSectionHeader('Notifications', Icons.notifications),
-          SwitchListTile(
-            title: const Text('Enable Notifications'),
-            subtitle: const Text('Receive push notifications'),
-            value: _notificationsEnabled,
-            onChanged: (value) {
-              setState(() => _notificationsEnabled = value);
-            },
-            secondary: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.pink.shade50,
-                shape: BoxShape.circle,
+              // Privacy Section
+              _buildSectionHeader('Privacy', Icons.lock),
+              SwitchListTile(
+                title: const Text('Show Online Status'),
+                subtitle: const Text('Let others see when you\'re online'),
+                value: _showOnlineStatus,
+                onChanged: _isLoading ? null : (value) {
+                  setState(() => _showOnlineStatus = value);
+                },
+                secondary: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.pink.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.circle, color: Colors.green),
+                ),
               ),
-              child: Icon(Icons.notifications, color: Colors.pink),
-            ),
-          ),
-          if (_notificationsEnabled) ...[
-            SwitchListTile(
-              title: const Text('Match Notifications'),
-              subtitle: const Text('When someone likes you back'),
-              value: _matchNotifications,
-              onChanged: (value) {
-                setState(() => _matchNotifications = value);
-              },
-            ),
-            SwitchListTile(
-              title: const Text('Message Notifications'),
-              subtitle: const Text('When you receive a new message'),
-              value: _messageNotifications,
-              onChanged: (value) {
-                setState(() => _messageNotifications = value);
-              },
-            ),
-            SwitchListTile(
-              title: const Text('Like Notifications'),
-              subtitle: const Text('When someone likes your profile'),
-              value: _likeNotifications,
-              onChanged: (value) {
-                setState(() => _likeNotifications = value);
-              },
-            ),
-          ],
-          const Divider(),
+              SwitchListTile(
+                title: const Text('Show Profile'),
+                subtitle: const Text('Make your profile visible to others'),
+                value: _showProfile,
+                onChanged: _isLoading ? null : (value) {
+                  setState(() => _showProfile = value);
+                },
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.pink.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.block, color: Colors.pink),
+                ),
+                title: const Text('Blocked Users'),
+                subtitle: const Text('Manage blocked users'),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Blocked users feature coming soon!'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
+              ),
+              const Divider(),
 
-          // Privacy Section
-          _buildSectionHeader('Privacy', Icons.lock),
-          SwitchListTile(
-            title: const Text('Show Online Status'),
-            subtitle: const Text('Let others see when you\'re online'),
-            value: _showOnlineStatus,
-            onChanged: (value) {
-              setState(() => _showOnlineStatus = value);
-            },
-            secondary: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.pink.shade50,
-                shape: BoxShape.circle,
+              // Account Section
+              _buildSectionHeader('Account', Icons.account_circle),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.pink.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.password, color: Colors.pink),
+                ),
+                title: const Text('Change Password'),
+                subtitle: const Text('Update your password'),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: _isLoading ? null : _showChangePasswordDialog,
               ),
-              child: Icon(Icons.circle, color: Colors.green),
-            ),
-          ),
-          SwitchListTile(
-            title: const Text('Show Profile'),
-            subtitle: const Text('Make your profile visible to others'),
-            value: _showProfile,
-            onChanged: (value) {
-              setState(() => _showProfile = value);
-            },
-          ),
-          ListTile(
-            leading: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.pink.shade50,
-                shape: BoxShape.circle,
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.delete, color: Colors.red),
+                ),
+                title: const Text(
+                  'Delete Account',
+                  style: TextStyle(color: Colors.red),
+                ),
+                subtitle: const Text('Permanently delete your account'),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.red),
+                onTap: _isLoading ? null : _showDeleteAccountDialog,
               ),
-              child: const Icon(Icons.block, color: Colors.pink),
-            ),
-            title: const Text('Blocked Users'),
-            subtitle: const Text('Manage blocked users'),
-            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Blocked users feature coming soon!')),
-              );
-            },
-          ),
-          const Divider(),
+              const Divider(),
 
-          // Account Section
-          _buildSectionHeader('Account', Icons.account_circle),
-          ListTile(
-            leading: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.pink.shade50,
-                shape: BoxShape.circle,
+              // App Info
+              _buildSectionHeader('App Info', Icons.info),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.pink.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.info, color: Colors.pink),
+                ),
+                title: const Text('Version'),
+                subtitle: const Text('1.0.0'),
               ),
-              child: const Icon(Icons.password, color: Colors.pink),
-            ),
-            title: const Text('Change Password'),
-            subtitle: const Text('Update your password'),
-            trailing: const Icon(Icons.arrow_forward_ios, size: 16),
-            onTap: _showChangePasswordDialog,
+              const SizedBox(height: 24),
+            ],
           ),
-          ListTile(
-            leading: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.red.shade50,
-                shape: BoxShape.circle,
+          if (_isLoading)
+            Container(
+              color: Colors.black.withValues(alpha:0.3),
+              child: const Center(
+                child: CircularProgressIndicator(),
               ),
-              child: const Icon(Icons.delete, color: Colors.red),
             ),
-            title: const Text(
-              'Delete Account',
-              style: TextStyle(color: Colors.red),
-            ),
-            subtitle: const Text('Permanently delete your account'),
-            trailing: const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.red),
-            onTap: _showDeleteAccountDialog,
-          ),
-          const Divider(),
-
-          // App Info
-          _buildSectionHeader('App Info', Icons.info),
-          ListTile(
-            leading: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.pink.shade50,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.info, color: Colors.pink),
-            ),
-            title: const Text('Version'),
-            subtitle: const Text('1.0.0'),
-          ),
-          const SizedBox(height: 24),
         ],
       ),
     );
