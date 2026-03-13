@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../services/block_service.dart'; // Import block service
 
 class ProfileDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -19,15 +20,18 @@ class ProfileDetailsScreen extends StatefulWidget {
 class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
+  final _blockService = BlockService();
 
   bool _isLoading = false;
   bool _hasLiked = false;
   bool _hasPassed = false;
+  bool _isBlocked = false;
 
   @override
   void initState() {
     super.initState();
     _checkUserInteraction();
+    _checkBlockStatus();
   }
 
   // Check if current user already liked/passed this profile
@@ -62,6 +66,92 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
       }
     } catch (e) {
       print('Error checking interaction: $e');
+    }
+  }
+
+  // Check if user is blocked
+  Future<void> _checkBlockStatus() async {
+    final isBlocked = await _blockService.isUserBlocked(widget.userId);
+    if (mounted) {
+      setState(() {
+        _isBlocked = isBlocked;
+      });
+    }
+  }
+
+  // Block user function
+  Future<void> _blockUser() async {
+    final userName = widget.userData['name'] ?? 'this user';
+
+    // Show confirmation dialog
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Icon(Icons.block, color: Colors.red, size: 40),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Block User',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            Text('Are you sure you want to block $userName?'),
+            const SizedBox(height: 8),
+            const Text(
+              'They will not be able to see your profile or send you messages.',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Block'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() => _isLoading = true);
+
+      final success = await _blockService.blockUser(widget.userId);
+
+      if (success && mounted) {
+        setState(() {
+          _isBlocked = true;
+          _isLoading = false;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('User blocked successfully'),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+
+        // Go back to previous screen
+        Navigator.pop(context);
+      } else {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to block user'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 
@@ -215,12 +305,21 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
           ? const Center(child: CircularProgressIndicator())
           : CustomScrollView(
         slivers: [
-          // App Bar with image
+          // App Bar with image and block button
           SliverAppBar(
             expandedHeight: 300,
             pinned: true,
             backgroundColor: Colors.pink,
             foregroundColor: Colors.white,
+            actions: [
+              // Block button (only show if not already blocked)
+              if (!_isBlocked)
+                IconButton(
+                  icon: const Icon(Icons.block),
+                  onPressed: _blockUser,
+                  tooltip: 'Block User',
+                ),
+            ],
             flexibleSpace: FlexibleSpaceBar(
               title: Text(
                 age.isNotEmpty ? '$name, $age' : name,
@@ -256,116 +355,141 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
             padding: const EdgeInsets.all(16),
             sliver: SliverList(
               delegate: SliverChildListDelegate([
-                // Bio
-                _buildSection(
-                  title: 'About Me',
-                  content: bio,
-                  icon: Icons.description,
-                ),
-                const SizedBox(height: 20),
-
-                // Basic Info Grid
-                Card(
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  child: Padding(
+                // Show message if user is blocked
+                if (_isBlocked)
+                  Container(
                     padding: const EdgeInsets.all(16),
-                    child: Column(
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.red.shade200),
+                    ),
+                    child: const Row(
                       children: [
-                        _buildInfoRow(Icons.location_on, 'Location',
-                            homeTown.isNotEmpty ? '$homeTown, $country' : country),
-                        _buildInfoRow(Icons.people, 'Gender', gender),
-                        _buildInfoRow(Icons.favorite, 'Interested in', partnerGender),
+                        Icon(Icons.block, color: Colors.red),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'You have blocked this user',
+                            style: TextStyle(color: Colors.red),
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                ),
-                const SizedBox(height: 20),
 
-                // Interests
-                if (interests.isNotEmpty)
-                  _buildInterestsSection(interests),
-                const SizedBox(height: 20),
+                if (!_isBlocked) ...[
+                  // Bio
+                  _buildSection(
+                    title: 'About Me',
+                    content: bio,
+                    icon: Icons.description,
+                  ),
+                  const SizedBox(height: 20),
 
-                // Action Buttons (Like/Pass)
-                if (!_hasLiked && !_hasPassed)
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: _likeUser,
-                          icon: const Icon(Icons.favorite),
-                          label: const Text('Like'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.pink,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: _passUser,
-                          icon: const Icon(Icons.close),
-                          label: const Text('Pass'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.grey,
-                            side: BorderSide(color: Colors.grey.shade300),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  )
-                else if (_hasLiked)
-                  Center(
-                    child: Container(
+                  // Basic Info Grid
+                  Card(
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    child: Padding(
                       padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.pink.shade50,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
+                      child: Column(
                         children: [
-                          Icon(Icons.favorite, color: Colors.pink),
-                          SizedBox(width: 8),
-                          Text(
-                            'You liked this profile',
-                            style: TextStyle(color: Colors.pink),
-                          ),
+                          _buildInfoRow(Icons.location_on, 'Location',
+                              homeTown.isNotEmpty ? '$homeTown, $country' : country),
+                          _buildInfoRow(Icons.people, 'Gender', gender),
+                          _buildInfoRow(Icons.favorite, 'Interested in', partnerGender),
                         ],
                       ),
                     ),
-                  )
-                else if (_hasPassed)
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Interests
+                  if (interests.isNotEmpty)
+                    _buildInterestsSection(interests),
+                  const SizedBox(height: 20),
+
+                  // Action Buttons (Like/Pass) - Only if not blocked
+                  if (!_hasLiked && !_hasPassed)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: _likeUser,
+                            icon: const Icon(Icons.favorite),
+                            label: const Text('Like'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.pink,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _passUser,
+                            icon: const Icon(Icons.close),
+                            label: const Text('Pass'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.grey,
+                              side: BorderSide(color: Colors.grey.shade300),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  else if (_hasLiked)
                     Center(
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.grey.shade100,
+                          color: Colors.pink.shade50,
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.close, color: Colors.grey),
+                            Icon(Icons.favorite, color: Colors.pink),
                             SizedBox(width: 8),
                             Text(
-                              'You passed this profile',
-                              style: TextStyle(color: Colors.grey),
+                              'You liked this profile',
+                              style: TextStyle(color: Colors.pink),
                             ),
                           ],
                         ),
                       ),
-                    ),
+                    )
+                  else if (_hasPassed)
+                      Center(
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.close, color: Colors.grey),
+                              SizedBox(width: 8),
+                              Text(
+                                'You passed this profile',
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                ],
                 const SizedBox(height: 30),
               ]),
             ),

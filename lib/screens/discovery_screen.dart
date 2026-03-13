@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'profile_details_screen.dart';
+import '../services/block_service.dart'; // Import block service
 
 class DiscoveryScreen extends StatefulWidget {
   const DiscoveryScreen({super.key});
@@ -13,9 +14,27 @@ class DiscoveryScreen extends StatefulWidget {
 class _DiscoveryScreenState extends State<DiscoveryScreen> {
   final _auth = FirebaseAuth.instance;
   final _firestore = FirebaseFirestore.instance;
+  final _blockService = BlockService();
 
   String? _selectedGender;
   RangeValues _ageRange = const RangeValues(18, 50);
+  Set<String> _blockedUserIds = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBlockedUsers();
+  }
+
+  // Load blocked users
+  Future<void> _loadBlockedUsers() async {
+    final blockedIds = await _blockService.getBlockedUserIdsSet();
+    if (mounted) {
+      setState(() {
+        _blockedUserIds = blockedIds;
+      });
+    }
+  }
 
   // Get liked and passed user IDs
   Future<Set<String>> _getLikedAndPassedUserIds(String currentUserId) async {
@@ -118,9 +137,10 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
 
               final interactedUserIds = futureSnapshot.data ?? {};
 
-              // Filter out users that current user already liked or passed
+              // Filter out users that current user already liked, passed, or blocked
               final availableUsers = otherUsers
                   .where((doc) => !interactedUserIds.contains(doc.id))
+                  .where((doc) => !_blockedUserIds.contains(doc.id)) // Filter out blocked users
                   .toList();
 
               if (availableUsers.isEmpty) {
@@ -168,20 +188,27 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                 return age >= _ageRange.start && age <= _ageRange.end;
               }).toList();
 
-              return GridView.builder(
-                padding: const EdgeInsets.all(12),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  childAspectRatio: 0.7,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                ),
-                itemCount: filteredUsers.length,
-                itemBuilder: (context, index) {
-                  final userDoc = filteredUsers[index];
-                  final userData = userDoc.data() as Map<String, dynamic>;
-                  return _buildUserCard(userData, userDoc.id);
+              return RefreshIndicator(
+                onRefresh: () async {
+                  setState(() {
+                    _loadBlockedUsers();
+                  });
                 },
+                child: GridView.builder(
+                  padding: const EdgeInsets.all(12),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    childAspectRatio: 0.7,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                  ),
+                  itemCount: filteredUsers.length,
+                  itemBuilder: (context, index) {
+                    final userDoc = filteredUsers[index];
+                    final userData = userDoc.data() as Map<String, dynamic>;
+                    return _buildUserCard(userData, userDoc.id);
+                  },
+                ),
               );
             },
           );
@@ -225,7 +252,10 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
               userId: userId,
             ),
           ),
-        );
+        ).then((_) {
+          // Refresh blocked users when returning from profile
+          _loadBlockedUsers();
+        });
       },
       child: Card(
         elevation: 2,
@@ -233,7 +263,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Profile Image
+            // Profile Image with Online Status Indicator
             Expanded(
               child: Stack(
                 children: [
@@ -255,7 +285,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                     )
                         : null,
                   ),
-                  // Online Status Indicator (top right corner)
+                  // Online Status Dot (top right corner)
                   if (showOnlineStatus)
                     Positioned(
                       top: 8,
@@ -291,7 +321,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      // Online/Offline text (optional - small text)
+                      // Online/Offline text (optional - small indicator)
                       if (showOnlineStatus)
                         Text(
                           isOnline ? '🟢' : '⚪',

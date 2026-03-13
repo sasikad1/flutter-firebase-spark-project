@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'blocked_users_screen.dart'; // Import blocked users screen
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -525,6 +526,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   setState(() => _showProfile = value);
                 },
               ),
+
+              // ✅ Blocked Users - Now with Navigation
               ListTile(
                 leading: Container(
                   padding: const EdgeInsets.all(8),
@@ -535,13 +538,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: const Icon(Icons.block, color: Colors.pink),
                 ),
                 title: const Text('Blocked Users'),
-                subtitle: const Text('Manage blocked users'),
+                subtitle: const Text('Manage users you have blocked'),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                 onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Blocked users feature coming soon!'),
-                      behavior: SnackBarBehavior.floating,
+                  // Navigate to blocked users screen
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const BlockedUsersScreen(),
                     ),
                   );
                 },
