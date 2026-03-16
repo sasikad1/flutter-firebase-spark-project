@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../services/block_service.dart'; // Import block service
+import '../services/block_service.dart';
 
 class ProfileDetailsScreen extends StatefulWidget {
   final Map<String, dynamic> userData;
@@ -40,7 +40,6 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
     if (currentUserId == null) return;
 
     try {
-      // Check for like
       final likeDoc = await _firestore
           .collection('likes')
           .doc('${currentUserId}_${widget.userId}')
@@ -53,7 +52,6 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
         return;
       }
 
-      // Check for pass
       final passDoc = await _firestore
           .collection('passes')
           .doc('${currentUserId}_${widget.userId}')
@@ -83,7 +81,6 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
   Future<void> _blockUser() async {
     final userName = widget.userData['name'] ?? 'this user';
 
-    // Show confirmation dialog
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -140,7 +137,6 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
           ),
         );
 
-        // Go back to previous screen
         Navigator.pop(context);
       } else {
         setState(() => _isLoading = false);
@@ -163,7 +159,6 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
     if (currentUserId == null) return;
 
     try {
-      // Add to likes collection
       await _firestore
           .collection('likes')
           .doc('${currentUserId}_${widget.userId}')
@@ -173,14 +168,12 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
         'timestamp': FieldValue.serverTimestamp(),
       });
 
-      // Check if it's a match (other user already liked current user)
       final otherLikeDoc = await _firestore
           .collection('likes')
           .doc('${widget.userId}_$currentUserId')
           .get();
 
       if (otherLikeDoc.exists) {
-        // It's a match! Create match document
         await _firestore.collection('matches').add({
           'users': [currentUserId, widget.userId],
           'timestamp': FieldValue.serverTimestamp(),
@@ -236,7 +229,6 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
     if (currentUserId == null) return;
 
     try {
-      // Add to passes collection
       await _firestore
           .collection('passes')
           .doc('${currentUserId}_${widget.userId}')
@@ -259,7 +251,6 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
           ),
         );
 
-        // Go back to discovery page after pass
         Navigator.pop(context);
       }
 
@@ -291,8 +282,9 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
         : null;
     final interests = widget.userData['interests'] as List<dynamic>? ?? [];
     final profileImageUrl = widget.userData['profileImageUrl'];
+    final emailVerified = widget.userData['emailVerified'] ?? false; // Add this line
 
-    // Age calculate කරන්න
+    // Age calculate
     String age = '';
     if (birthDate != null) {
       final now = DateTime.now();
@@ -312,7 +304,6 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
             backgroundColor: Colors.pink,
             foregroundColor: Colors.white,
             actions: [
-              // Block button (only show if not already blocked)
               if (!_isBlocked)
                 IconButton(
                   icon: const Icon(Icons.block),
@@ -321,11 +312,36 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
                 ),
             ],
             flexibleSpace: FlexibleSpaceBar(
-              title: Text(
-                age.isNotEmpty ? '$name, $age' : name,
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  shadows: [Shadow(blurRadius: 10, color: Colors.black45)],
+              title: Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      age.isNotEmpty ? '$name, $age' : name,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        shadows: [Shadow(blurRadius: 10, color: Colors.black45)],
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    // ✅ Verified badge in AppBar
+                    if (emailVerified)
+                      Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: const BoxDecoration(
+                          color: Colors.blue,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.verified,
+                          size: 14,
+                          color: Colors.white,
+                        ),
+                      ),
+                  ],
                 ),
               ),
               background: profileImageUrl != null
@@ -379,6 +395,48 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
                   ),
 
                 if (!_isBlocked) ...[
+                  // Name with verified badge (large version)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            age.isNotEmpty ? '$name, $age' : name,
+                            style: const TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        // ✅ Large verified badge
+                        if (emailVerified)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.blue.shade50,
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.verified, size: 16, color: Colors.blue),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Verified',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.blue,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+
                   // Bio
                   _buildSection(
                     title: 'About Me',
@@ -410,7 +468,7 @@ class _ProfileDetailsScreenState extends State<ProfileDetailsScreen> {
                     _buildInterestsSection(interests),
                   const SizedBox(height: 20),
 
-                  // Action Buttons (Like/Pass) - Only if not blocked
+                  // Action Buttons (Like/Pass)
                   if (!_hasLiked && !_hasPassed)
                     Row(
                       children: [

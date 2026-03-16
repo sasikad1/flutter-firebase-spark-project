@@ -100,10 +100,10 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
             return const Center(child: Text('Please login again'));
           }
 
-          // ✅ Filter out users who have showProfile = false
+          // Filter out users who have showProfile = false
           final visibleUsers = users.where((doc) {
             final data = doc.data() as Map<String, dynamic>;
-            final showProfile = data['showProfile'] ?? true; // Default to true
+            final showProfile = data['showProfile'] ?? true;
             return showProfile == true;
           }).toList();
 
@@ -220,6 +220,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
     );
   }
 
+  // ✅ User Card Builder - Verified Badge Bottom Right
   Widget _buildUserCard(Map<String, dynamic> userData, String userId) {
     final name = userData['name'] ?? 'Unknown';
     final bio = userData['bio'] ?? '';
@@ -227,6 +228,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
     final birthDate = userData['birthDate'] != null
         ? (userData['birthDate'] as Timestamp).toDate()
         : null;
+    final emailVerified = userData['emailVerified'] ?? false; // Verified status
 
     final isOnline = userData['isOnline'] ?? false;
     final showOnlineStatus = userData['showOnlineStatus'] ?? true;
@@ -260,9 +262,11 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Profile Image Section
             Expanded(
               child: Stack(
                 children: [
+                  // Profile Image
                   Container(
                     width: double.infinity,
                     decoration: BoxDecoration(
@@ -281,6 +285,8 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                     )
                         : null,
                   ),
+
+                  // ✅ Online Status Dot (Top Right)
                   if (showOnlineStatus)
                     Positioned(
                       top: 8,
@@ -299,11 +305,13 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
               ),
             ),
 
+            // User Info Section
             Padding(
               padding: const EdgeInsets.all(8.0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Name and Age
                   Row(
                     children: [
                       Expanded(
@@ -314,14 +322,10 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      if (showOnlineStatus)
-                        Text(
-                          isOnline ? '🟢' : '⚪',
-                          style: const TextStyle(fontSize: 10),
-                        ),
                     ],
                   ),
 
+                  // Location
                   if (country.isNotEmpty)
                     Row(
                       children: [
@@ -338,12 +342,42 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
                       ],
                     ),
 
+                  // Bio
                   if (bio.isNotEmpty)
                     Text(
                       bio,
                       style: const TextStyle(fontSize: 12),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
+                    ),
+
+                  // ✅ Verified Badge (Bottom Right)
+                  if (emailVerified)
+                    Align(
+                      alignment: Alignment.bottomRight,
+                      child: Container(
+                        margin: const EdgeInsets.only(top: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.verified, size: 12, color: Colors.blue),
+                            SizedBox(width: 2),
+                            Text(
+                              'Verified',
+                              style: TextStyle(
+                                color: Colors.blue,
+                                fontSize: 8,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                 ],
               ),
@@ -354,6 +388,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
     );
   }
 
+  // Filter Dialog
   void _showFilterDialog() {
     showDialog(
       context: context,

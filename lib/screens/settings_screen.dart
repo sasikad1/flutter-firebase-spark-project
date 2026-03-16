@@ -35,17 +35,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
       setState(() {
         _isEmailVerified = user.emailVerified;
       });
-
-      if (_isEmailVerified) {
-        _firestore.collection('users').doc(user.uid).update({
-          'emailVerified': true,
-        });
-      }
     }
   }
 
-  // Resend verification email
-  Future<void> _resendVerificationEmail() async {
+  // Send verification email
+  Future<void> _sendVerificationEmail() async {
     final user = _auth.currentUser;
     if (user != null && !user.emailVerified) {
       await user.sendEmailVerification();
@@ -57,6 +51,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
             behavior: SnackBarBehavior.floating,
           ),
         );
+      }
+    }
+  }
+
+  // Check and update verification status
+  Future<void> _checkVerificationStatus() async {
+    final user = _auth.currentUser;
+    if (user != null) {
+      await user.reload();
+      final updatedUser = _auth.currentUser;
+      if (updatedUser != null && updatedUser.emailVerified != _isEmailVerified) {
+        setState(() {
+          _isEmailVerified = updatedUser.emailVerified;
+        });
+
+        if (_isEmailVerified) {
+          await _firestore.collection('users').doc(user.uid).update({
+            'emailVerified': true,
+            'verifiedAt': FieldValue.serverTimestamp(),
+          });
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Email verified successfully!'),
+                backgroundColor: Colors.green,
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Status: Not verified yet'),
+              backgroundColor: Colors.orange,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
       }
     }
   }
@@ -558,7 +593,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               const Divider(),
 
-              // Account Security Section
+              // ✅ UPDATED: Account Security Section with Verification UI
               _buildSectionHeader('Account Security', Icons.security),
               ListTile(
                 leading: Container(
@@ -604,14 +639,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 subtitle: Text(
                   _isEmailVerified
-                      ? 'Your email is verified'
-                      : 'Verify your email to secure your account',
+                      ? 'Your email is verified ✓'
+                      : 'Verify your email to secure your account and get a verified badge',
                 ),
-                trailing: _isEmailVerified
-                    ? null
-                    : TextButton(
-                  onPressed: _resendVerificationEmail,
-                  child: const Text('Resend', style: TextStyle(color: Colors.blue)),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Refresh button to check verification status
+                    IconButton(
+                      icon: const Icon(Icons.refresh, size: 20),
+                      onPressed: _checkVerificationStatus,
+                      tooltip: 'Check verification status',
+                    ),
+                    if (!_isEmailVerified)
+                      TextButton(
+                        onPressed: _sendVerificationEmail,
+                        child: const Text('Verify', style: TextStyle(color: Colors.blue)),
+                      ),
+                  ],
                 ),
               ),
               const Divider(),

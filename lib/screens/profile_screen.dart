@@ -22,6 +22,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   bool _isLoading = false;
   bool _isEditing = false;
+  bool _isEmailVerified = false; // Add this for email verification
   File? _profileImage;
   String? _profileImageUrl;
 
@@ -83,6 +84,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     _loadUserProfile();
+    _checkEmailVerification(); // Add this
+  }
+
+  // ✅ Check email verification status
+  void _checkEmailVerification() {
+    final user = _auth.currentUser;
+    if (user != null) {
+      setState(() {
+        _isEmailVerified = user.emailVerified;
+      });
+    }
   }
 
   @override
@@ -235,6 +247,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'interests': _selectedInterests,
         'profileImageUrl': _profileImageUrl, // Keep existing (null for now)
         'email': _auth.currentUser!.email,
+        'emailVerified': _isEmailVerified, // Add email verification status
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
@@ -272,7 +285,32 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('My Profile'),
+        title: Row(
+          children: [
+            const Text('My Profile'),
+            const SizedBox(width: 8),
+            // ✅ Add verified badge if email is verified
+            if (_isEmailVerified)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.blue,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.verified, color: Colors.white, size: 14),
+                    SizedBox(width: 4),
+                    Text(
+                      'Verified',
+                      style: TextStyle(color: Colors.white, fontSize: 10),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
         backgroundColor: Colors.pink,
         foregroundColor: Colors.white,
         automaticallyImplyLeading: false,

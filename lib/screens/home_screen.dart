@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'profile_screen.dart';
 import 'discovery_screen.dart';
 import 'matches_screen.dart';
-import 'settings_screen.dart';  // මේක add කරන්න
+import 'settings_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -16,7 +17,39 @@ class HomeScreen extends StatelessWidget {
       length: 5, // Home, Discover, Matches, Profile, Settings tabs
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Spark'),
+          title: Row(
+            children: [
+              const Text('Spark'),
+              const SizedBox(width: 8),
+              // ✅ StreamBuilder to listen to auth changes and show verified badge
+              StreamBuilder<User?>(
+                stream: FirebaseAuth.instance.authStateChanges(),
+                builder: (context, snapshot) {
+                  if (snapshot.hasData && snapshot.data!.emailVerified) {
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.blue,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.verified, color: Colors.white, size: 12),
+                          SizedBox(width: 4),
+                          Text(
+                            'Verified',
+                            style: TextStyle(color: Colors.white, fontSize: 8),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                  return const SizedBox();
+                },
+              ),
+            ],
+          ),
           toolbarHeight: 70,
           backgroundColor: Colors.pink,
           foregroundColor: Colors.white,
@@ -33,7 +66,7 @@ class HomeScreen extends StatelessWidget {
                 Tab(icon: Icon(Icons.people), text: 'Discover'),
                 Tab(icon: Icon(Icons.favorite), text: 'Matches'),
                 Tab(icon: Icon(Icons.person), text: 'Profile'),
-                Tab(icon: Icon(Icons.settings), text: 'Settings'), // අලුත් tab එක
+                Tab(icon: Icon(Icons.settings), text: 'Settings'),
               ],
             ),
           ),
