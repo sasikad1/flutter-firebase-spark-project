@@ -2,17 +2,27 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // Add this for Firestore
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart'; // Add this for provider
 import 'firebase_options.dart';
 import 'screens/home_screen.dart';
 import 'services/presence_service.dart';
+import 'providers/theme_provider.dart'; // Add theme provider
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
-  runApp(const MyApp());
+  runApp(
+    // Wrap with MultiProvider for theme management
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatefulWidget {
@@ -59,7 +69,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     }
   }
 
-  // ✅ Check if user has profile, if not create one
+  // Check if user has profile, if not create one
   Future<void> _checkAndCreateUserProfile(User user) async {
     final firestore = FirebaseFirestore.instance;
 
@@ -95,39 +105,46 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Spark Dating App',
-      theme: ThemeData(
-        primarySwatch: Colors.pink,
-        useMaterial3: true,
-        appBarTheme: const AppBarTheme(
-          elevation: 0,
-          centerTitle: true,
-        ),
-      ),
-      home: StreamBuilder<User?>(
-        stream: FirebaseAuth.instance.authStateChanges(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            );
-          }
-          if (snapshot.hasData) {
-            final user = snapshot.data!;
+    // Consumer to listen to theme changes
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, child) {
+        return MaterialApp(
+          title: 'Spark Dating App',
+          // Light theme
+          theme: themeProvider.getThemeData(false),
+          // Dark theme
+          darkTheme: themeProvider.getThemeData(true),
+          // Theme mode based on user preference
+          themeMode: themeProvider.currentTheme == AppTheme.system
+              ? ThemeMode.system
+              : themeProvider.currentTheme == AppTheme.dark
+              ? ThemeMode.dark
+              : ThemeMode.light,
+          home: StreamBuilder<User?>(
+            stream: FirebaseAuth.instance.authStateChanges(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+              }
+              if (snapshot.hasData) {
+                final user = snapshot.data!;
 
-            // ✅ Check/create profile when user logs in
-            WidgetsBinding.instance.addPostFrameCallback((_) async {
-              await _checkAndCreateUserProfile(user);
-              PresenceService().setOnline(true);
-              print('📱 User logged in - Online');
-            });
+                // Check/create profile when user logs in
+                WidgetsBinding.instance.addPostFrameCallback((_) async {
+                  await _checkAndCreateUserProfile(user);
+                  PresenceService().setOnline(true);
+                  print('📱 User logged in - Online');
+                });
 
-            return const HomeScreen();
-          }
-          return const AuthScreen();
-        },
-      ),
+                return const HomeScreen();
+              }
+              return const AuthScreen();
+            },
+          ),
+        );
+      },
     );
   }
 }
@@ -199,7 +216,7 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
-  // ✅ Google Sign-In Function
+  // Google Sign-In Function
   Future<void> _signInWithGoogle() async {
     setState(() => _isLoading = true);
 
@@ -239,6 +256,9 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Get current theme for dynamic colors
+    final theme = Theme.of(context);
+
     return Scaffold(
       body: SafeArea(
         child: Padding(
@@ -250,26 +270,34 @@ class _AuthScreenState extends State<AuthScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Logo
+                    // Logo with theme-aware color
                     Container(
                       width: 100, height: 100,
                       decoration: BoxDecoration(
-                        color: Colors.pink.shade100,
+                        color: theme.colorScheme.primary.withValues(alpha:0.1),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.favorite, size: 60, color: Colors.pink),
+                      child: Icon(
+                        Icons.favorite,
+                        size: 60,
+                        color: theme.colorScheme.primary,
+                      ),
                     ),
                     const SizedBox(height: 30),
 
                     // Title
                     Text(
                       _isLogin ? 'Welcome Back!' : 'Create Account',
-                      style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+                      style: theme.textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 10),
                     Text(
                       _isLogin ? 'Sign in to continue' : 'Sign up to get started',
-                      style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(alpha:0.6),
+                      ),
                     ),
                     const SizedBox(height: 40),
 
@@ -277,10 +305,9 @@ class _AuthScreenState extends State<AuthScreen> {
                     TextFormField(
                       controller: _emailController,
                       keyboardType: TextInputType.emailAddress,
-                      decoration: InputDecoration(
+                      decoration: const InputDecoration(
                         labelText: 'Email',
-                        prefixIcon: const Icon(Icons.email),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        prefixIcon: Icon(Icons.email),
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) return 'Please enter your email';
@@ -294,10 +321,9 @@ class _AuthScreenState extends State<AuthScreen> {
                     TextFormField(
                       controller: _passwordController,
                       obscureText: true,
-                      decoration: InputDecoration(
+                      decoration: const InputDecoration(
                         labelText: 'Password',
-                        prefixIcon: const Icon(Icons.lock),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        prefixIcon: Icon(Icons.lock),
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) return 'Please enter your password';
@@ -319,9 +345,11 @@ class _AuthScreenState extends State<AuthScreen> {
                             child: ElevatedButton(
                               onPressed: _submit,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.pink,
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                backgroundColor: theme.colorScheme.primary,
+                                foregroundColor: theme.colorScheme.onPrimary,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
                               child: Text(
                                 _isLogin ? 'Login' : 'Sign Up',
@@ -334,35 +362,40 @@ class _AuthScreenState extends State<AuthScreen> {
                             onPressed: () => setState(() => _isLogin = !_isLogin),
                             child: Text(
                               _isLogin ? "Don't have an account? Sign Up" : 'Already have an account? Login',
-                              style: const TextStyle(color: Colors.pink),
+                              style: TextStyle(color: theme.colorScheme.primary),
                             ),
                           ),
 
                           // Divider
-                          const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 20),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 20),
                             child: Row(
                               children: [
-                                Expanded(child: Divider(thickness: 1)),
+                                Expanded(child: Divider(color: theme.dividerColor)),
                                 Padding(
-                                  padding: EdgeInsets.symmetric(horizontal: 16),
-                                  child: Text('OR', style: TextStyle(color: Colors.grey)),
+                                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                                  child: Text(
+                                    'OR',
+                                    style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha:0.5)),
+                                  ),
                                 ),
-                                Expanded(child: Divider(thickness: 1)),
+                                Expanded(child: Divider(color: theme.dividerColor)),
                               ],
                             ),
                           ),
 
-                          // ✅ Google Sign-In Button
+                          // Google Sign-In Button
                           SizedBox(
                             width: double.infinity,
                             height: 50,
                             child: OutlinedButton(
                               onPressed: _signInWithGoogle,
                               style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.black87,
-                                side: BorderSide(color: Colors.grey.shade300),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                foregroundColor: theme.colorScheme.onSurface,
+                                side: BorderSide(color: theme.dividerColor),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
@@ -391,7 +424,10 @@ class _AuthScreenState extends State<AuthScreen> {
                           // Note about Google Sign-In
                           Text(
                             'Sign in with your Google account',
-                            style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: theme.colorScheme.onSurface.withValues(alpha:0.5),
+                            ),
                           ),
                         ],
                       ),

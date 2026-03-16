@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'blocked_users_screen.dart'; // Import blocked users screen
+import 'package:provider/provider.dart';
+import 'blocked_users_screen.dart';
+import '../providers/theme_provider.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -17,11 +19,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isLoading = false;
   bool _showOnlineStatus = true;
   bool _showProfile = true;
+  bool _isEmailVerified = false;
 
   @override
   void initState() {
     super.initState();
     _loadUserSettings();
+    _checkEmailVerification();
+  }
+
+  // Check email verification status
+  void _checkEmailVerification() {
+    final user = _auth.currentUser;
+    if (user != null) {
+      setState(() {
+        _isEmailVerified = user.emailVerified;
+      });
+
+      if (_isEmailVerified) {
+        _firestore.collection('users').doc(user.uid).update({
+          'emailVerified': true,
+        });
+      }
+    }
+  }
+
+  // Resend verification email
+  Future<void> _resendVerificationEmail() async {
+    final user = _auth.currentUser;
+    if (user != null && !user.emailVerified) {
+      await user.sendEmailVerification();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Verification email sent! Please check your inbox.'),
+            backgroundColor: Colors.blue,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   // Load user settings from Firestore
@@ -95,7 +132,54 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // 🔐 Password Change Function with Firebase Auth
+  // 🌙 Theme selection dialog
+  Future<void> _showThemeDialog() async {
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Select Theme'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: const Text('Light Mode'),
+              leading: const Icon(Icons.light_mode),
+              selected: themeProvider.currentTheme == AppTheme.light,
+              selectedTileColor: Colors.pink.shade50,
+              onTap: () {
+                themeProvider.setTheme(AppTheme.light);
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              title: const Text('Dark Mode'),
+              leading: const Icon(Icons.dark_mode),
+              selected: themeProvider.currentTheme == AppTheme.dark,
+              selectedTileColor: Colors.pink.shade50,
+              onTap: () {
+                themeProvider.setTheme(AppTheme.dark);
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              title: const Text('System Default'),
+              leading: const Icon(Icons.settings),
+              selected: themeProvider.currentTheme == AppTheme.system,
+              selectedTileColor: Colors.pink.shade50,
+              onTap: () {
+                themeProvider.setTheme(AppTheme.system);
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // 🔐 Password Change Function
   Future<void> _changePassword({
     required String currentPassword,
     required String newPassword,
@@ -106,15 +190,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final user = _auth.currentUser;
       if (user == null) throw Exception('No user logged in');
 
-      // Re-authenticate user first (required for sensitive operations)
       final credential = EmailAuthProvider.credential(
         email: user.email!,
         password: currentPassword,
       );
 
       await user.reauthenticateWithCredential(credential);
-
-      // Change password
       await user.updatePassword(newPassword);
 
       if (mounted) {
@@ -123,7 +204,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     } on FirebaseAuthException catch (e) {
       String message = 'Password change failed';
-
       switch (e.code) {
         case 'wrong-password':
           message = 'Current password is incorrect';
@@ -137,20 +217,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
         default:
           message = 'Error: ${e.message}';
       }
-
-      if (mounted) {
-        _showErrorSnackBar(message);
-      }
+      if (mounted) _showErrorSnackBar(message);
     } catch (e) {
-      if (mounted) {
-        _showErrorSnackBar('An unexpected error occurred');
-      }
+      if (mounted) _showErrorSnackBar('An unexpected error occurred');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  // Change Password Dialog with Validation
+  // Change Password Dialog
   Future<void> _showChangePasswordDialog() async {
     final currentPasswordController = TextEditingController();
     final newPasswordController = TextEditingController();
@@ -167,7 +242,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Current Password
                 TextFormField(
                   controller: currentPasswordController,
                   obscureText: true,
@@ -177,15 +251,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     prefixIcon: Icon(Icons.lock_outline),
                   ),
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter current password';
-                    }
+                    if (value == null || value.isEmpty) return 'Please enter current password';
                     return null;
                   },
                 ),
                 const SizedBox(height: 16),
-
-                // New Password
                 TextFormField(
                   controller: newPasswordController,
                   obscureText: true,
@@ -195,18 +265,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     prefixIcon: Icon(Icons.lock),
                   ),
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter new password';
-                    }
-                    if (value.length < 6) {
-                      return 'Password must be at least 6 characters';
-                    }
+                    if (value == null || value.isEmpty) return 'Please enter new password';
+                    if (value.length < 6) return 'Password must be at least 6 characters';
                     return null;
                   },
                 ),
                 const SizedBox(height: 16),
-
-                // Confirm New Password
                 TextFormField(
                   controller: confirmPasswordController,
                   obscureText: true,
@@ -216,12 +280,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     prefixIcon: Icon(Icons.lock_outline),
                   ),
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please confirm new password';
-                    }
-                    if (value != newPasswordController.text) {
-                      return 'Passwords do not match';
-                    }
+                    if (value == null || value.isEmpty) return 'Please confirm new password';
+                    if (value != newPasswordController.text) return 'Passwords do not match';
                     return null;
                   },
                 ),
@@ -237,9 +297,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ElevatedButton(
             onPressed: () async {
               if (formKey.currentState?.validate() ?? false) {
-                Navigator.pop(context); // Close dialog
-
-                // Call password change function
+                Navigator.pop(context);
                 await _changePassword(
                   currentPassword: currentPasswordController.text.trim(),
                   newPassword: newPasswordController.text.trim(),
@@ -257,7 +315,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // Delete Account Dialog with Double Confirmation
+  // Delete Account Dialog
   Future<void> _showDeleteAccountDialog() async {
     final passwordController = TextEditingController();
     final formKey = GlobalKey<FormState>();
@@ -265,7 +323,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     return showDialog(
       context: context,
-      barrierDismissible: false, // Prevent accidental dismissal
+      barrierDismissible: false,
       builder: (BuildContext context) {
         return StatefulBuilder(
           builder: (context, setState) {
@@ -283,10 +341,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   children: [
                     const Text(
                       'Delete Account',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 16),
                     const Text(
@@ -299,11 +354,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     const Text('• You will lose all matches and messages'),
                     const SizedBox(height: 16),
                     ElevatedButton(
-                      onPressed: () {
-                        setState(() {
-                          _firstStepComplete = true;
-                        });
-                      },
+                      onPressed: () => setState(() => _firstStepComplete = true),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.red,
                         foregroundColor: Colors.white,
@@ -320,15 +371,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     children: [
                       const Text(
                         'Final Step',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
-                      const Text(
-                        'Enter your password to confirm account deletion:',
-                      ),
+                      const Text('Enter your password to confirm account deletion:'),
                       const SizedBox(height: 16),
                       TextFormField(
                         controller: passwordController,
@@ -339,9 +385,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           prefixIcon: Icon(Icons.lock),
                         ),
                         validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Please enter your password';
-                          }
+                          if (value == null || value.isEmpty) return 'Please enter your password';
                           return null;
                         },
                         autofocus: true,
@@ -365,7 +409,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ElevatedButton(
                   onPressed: () async {
                     if (formKey.currentState?.validate() ?? false) {
-                      Navigator.pop(context); // Close dialog
+                      Navigator.pop(context);
                       await _deleteAccount(passwordController.text.trim());
                     }
                   },
@@ -383,90 +427,66 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // Delete Account Function with Comprehensive Error Handling
+  // Delete Account Function
   Future<void> _deleteAccount(String password) async {
-    // Show loading dialog
     if (!mounted) return;
 
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(
-        child: CircularProgressIndicator(),
-      ),
+      builder: (context) => const Center(child: CircularProgressIndicator()),
     );
 
     try {
       final user = _auth.currentUser;
       if (user == null) throw Exception('No user logged in');
 
-      // Step 1: Re-authenticate before deletion
       final credential = EmailAuthProvider.credential(
         email: user.email!,
         password: password,
       );
 
       await user.reauthenticateWithCredential(credential);
-
-      // Step 2: Delete user data from Firestore
       await _firestore.collection('users').doc(user.uid).delete();
-
-      // Step 3: Delete user from Firebase Auth
       await user.delete();
 
-      // Close loading dialog
       if (mounted) Navigator.pop(context);
-
-      // Step 4: Sign out
       await _auth.signOut();
 
-      // Show success message (after navigation)
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Account deleted successfully'),
+          const SnackBar(
+            content: Text('Account deleted successfully'),
             backgroundColor: Colors.green,
             behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 3),
           ),
         );
       }
 
     } on FirebaseAuthException catch (e) {
-      // Close loading dialog
       if (mounted) Navigator.pop(context);
-
       String message = 'Account deletion failed';
-
       switch (e.code) {
         case 'wrong-password':
           message = 'Incorrect password. Please try again.';
           break;
         case 'requires-recent-login':
-          message = 'For security, please log out and log in again before deleting your account.';
-          break;
-        case 'network-request-failed':
-          message = 'Network error. Please check your connection.';
+          message = 'Please log in again to delete your account.';
           break;
         default:
           message = 'Error: ${e.message}';
       }
-
-      if (mounted) {
-        _showErrorSnackBar(message);
-      }
+      if (mounted) _showErrorSnackBar(message);
     } catch (e) {
-      // Close loading dialog
       if (mounted) Navigator.pop(context);
-
-      if (mounted) {
-        _showErrorSnackBar('An unexpected error occurred. Please try again.');
-      }
+      if (mounted) _showErrorSnackBar('An unexpected error occurred.');
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final themeProvider = Provider.of<ThemeProvider>(context);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Settings'),
@@ -494,9 +514,105 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 subtitle: const Text('Change your name, bio, photos'),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                 onTap: () {
-                  // Navigate to profile tab
                   DefaultTabController.of(context)?.animateTo(3);
                 },
+              ),
+              const Divider(),
+
+              // 🌙 Appearance Section (Theme)
+              _buildSectionHeader('Appearance', Icons.palette),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.pink.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Consumer<ThemeProvider>(
+                    builder: (context, themeProvider, child) {
+                      return Icon(
+                        themeProvider.currentTheme == AppTheme.light
+                            ? Icons.light_mode
+                            : themeProvider.currentTheme == AppTheme.dark
+                            ? Icons.dark_mode
+                            : Icons.settings,
+                        color: Colors.pink,
+                      );
+                    },
+                  ),
+                ),
+                title: const Text('Theme'),
+                subtitle: Consumer<ThemeProvider>(
+                  builder: (context, themeProvider, child) {
+                    return Text(
+                      themeProvider.currentTheme == AppTheme.light
+                          ? 'Light Mode'
+                          : themeProvider.currentTheme == AppTheme.dark
+                          ? 'Dark Mode'
+                          : 'System Default',
+                    );
+                  },
+                ),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: _showThemeDialog,
+              ),
+              const Divider(),
+
+              // Account Security Section
+              _buildSectionHeader('Account Security', Icons.security),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: _isEmailVerified ? Colors.green.shade50 : Colors.orange.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    _isEmailVerified ? Icons.verified : Icons.warning,
+                    color: _isEmailVerified ? Colors.green : Colors.orange,
+                  ),
+                ),
+                title: Row(
+                  children: [
+                    const Text('Email Verification'),
+                    const SizedBox(width: 8),
+                    if (_isEmailVerified)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.green,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Text(
+                          'Verified',
+                          style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                        ),
+                      )
+                    else
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.orange,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Text(
+                          'Pending',
+                          style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                  ],
+                ),
+                subtitle: Text(
+                  _isEmailVerified
+                      ? 'Your email is verified'
+                      : 'Verify your email to secure your account',
+                ),
+                trailing: _isEmailVerified
+                    ? null
+                    : TextButton(
+                  onPressed: _resendVerificationEmail,
+                  child: const Text('Resend', style: TextStyle(color: Colors.blue)),
+                ),
               ),
               const Divider(),
 
@@ -506,9 +622,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 title: const Text('Show Online Status'),
                 subtitle: const Text('Let others see when you\'re online'),
                 value: _showOnlineStatus,
-                onChanged: _isLoading ? null : (value) {
-                  setState(() => _showOnlineStatus = value);
-                },
+                onChanged: _isLoading ? null : (value) => setState(() => _showOnlineStatus = value),
                 secondary: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
@@ -522,12 +636,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 title: const Text('Show Profile'),
                 subtitle: const Text('Make your profile visible to others'),
                 value: _showProfile,
-                onChanged: _isLoading ? null : (value) {
-                  setState(() => _showProfile = value);
-                },
+                onChanged: _isLoading ? null : (value) => setState(() => _showProfile = value),
               ),
 
-              // ✅ Blocked Users - Now with Navigation
+              // Blocked Users
               ListTile(
                 leading: Container(
                   padding: const EdgeInsets.all(8),
@@ -541,12 +653,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 subtitle: const Text('Manage users you have blocked'),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                 onTap: () {
-                  // Navigate to blocked users screen
                   Navigator.push(
                     context,
-                    MaterialPageRoute(
-                      builder: (context) => const BlockedUsersScreen(),
-                    ),
+                    MaterialPageRoute(builder: (context) => const BlockedUsersScreen()),
                   );
                 },
               ),
@@ -607,9 +716,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           if (_isLoading)
             Container(
               color: Colors.black.withValues(alpha:0.3),
-              child: const Center(
-                child: CircularProgressIndicator(),
-              ),
+              child: const Center(child: CircularProgressIndicator()),
             ),
         ],
       ),
