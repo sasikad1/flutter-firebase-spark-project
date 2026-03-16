@@ -22,7 +22,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   bool _isLoading = false;
   bool _isEditing = false;
-  bool _isEmailVerified = false; // Add this for email verification
+  bool _isEmailVerified = false;
   File? _profileImage;
   String? _profileImageUrl;
 
@@ -84,10 +84,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void initState() {
     super.initState();
     _loadUserProfile();
-    _checkEmailVerification(); // Add this
+    _checkEmailVerification();
   }
 
-  // ✅ Check email verification status
   void _checkEmailVerification() {
     final user = _auth.currentUser;
     if (user != null) {
@@ -106,7 +105,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.dispose();
   }
 
-  // Image helper method
   ImageProvider? _getProfileImage() {
     if (_profileImage != null) {
       return FileImage(_profileImage!);
@@ -117,7 +115,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return null;
   }
 
-  // Load existing profile data
   Future<void> _loadUserProfile() async {
     setState(() => _isLoading = true);
 
@@ -133,7 +130,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         _bioController.text = data['bio'] ?? '';
         _homeTownController.text = data['homeTown'] ?? '';
 
-        // Country load
         String savedCountry = data['country'] ?? '';
         if (_countryOptions.contains(savedCountry)) {
           _countryController.text = savedCountry;
@@ -141,7 +137,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _countryController.text = '';
         }
 
-        // Profile image URL load
         _profileImageUrl = data['profileImageUrl'];
         print('📸 Loaded profile image URL: $_profileImageUrl');
 
@@ -165,52 +160,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // ✅ Image Upload Temporary Disabled
-  // Future<void> _pickImage() async {
-  //   final XFile? image = await _picker.pickImage(
-  //     source: ImageSource.gallery,
-  //     maxWidth: 512,
-  //     maxHeight: 512,
-  //     imageQuality: 75,
-  //   );
-
-  //   if (image != null) {
-  //     setState(() {
-  //       _profileImage = File(image.path);
-  //     });
-  //     print('📸 Image selected: ${image.path}');
-  //   }
-  // }
-
-  // ✅ Upload image function - Temporary Disabled (not used)
-  // Future<String?> _uploadImage() async {
-  //   if (_profileImage == null) {
-  //     print('📸 No new image to upload, using existing: $_profileImageUrl');
-  //     return _profileImageUrl;
-  //   }
-
-  //   try {
-  //     final userId = _auth.currentUser!.uid;
-  //     final timestamp = DateTime.now().millisecondsSinceEpoch;
-  //     final ref = _storage.ref().child('profile_images').child('${userId}_$timestamp.jpg');
-
-  //     print('📸 Uploading image to: ${ref.fullPath}');
-
-  //     await ref.putFile(
-  //       _profileImage!,
-  //       SettableMetadata(contentType: 'image/jpeg'),
-  //     );
-
-  //     final imageUrl = await ref.getDownloadURL();
-  //     print('✅ Image uploaded successfully: $imageUrl');
-  //     return imageUrl;
-  //   } catch (e) {
-  //     print('❌ Error uploading image: $e');
-  //     return _profileImageUrl;
-  //   }
-  // }
-
-  // ✅ Save profile to Firestore (WITHOUT IMAGE UPLOAD)
   Future<void> _saveProfile() async {
     if (_nameController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -233,9 +182,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       print('📝 Saving profile for user: $userId');
 
-      // ✅ SKIP image upload - always use existing or null
-      // _profileImageUrl remains whatever it was (null or existing URL)
-
       final profileData = {
         'name': _nameController.text.trim(),
         'bio': _bioController.text.trim(),
@@ -245,9 +191,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'gender': _selectedGender,
         'partnerGender': _selectedPartnerGender,
         'interests': _selectedInterests,
-        'profileImageUrl': _profileImageUrl, // Keep existing (null for now)
+        'profileImageUrl': _profileImageUrl,
         'email': _auth.currentUser!.email,
-        'emailVerified': _isEmailVerified, // Add email verification status
+        'emailVerified': _isEmailVerified,
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
@@ -283,13 +229,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
       appBar: AppBar(
         title: Row(
           children: [
             const Text('My Profile'),
             const SizedBox(width: 8),
-            // ✅ Add verified badge if email is verified
             if (_isEmailVerified)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -341,32 +289,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // Profile Picture - Image Upload Button Disabled
+            // Profile Picture
             Center(
               child: Stack(
                 children: [
                   CircleAvatar(
                     radius: 60,
                     backgroundImage: _getProfileImage(),
-                    backgroundColor: Colors.grey.shade200,
+                    backgroundColor: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
                     child: _profileImage == null && _profileImageUrl == null
-                        ? const Icon(Icons.person, size: 60, color: Colors.grey)
+                        ? Icon(
+                      Icons.person,
+                      size: 60,
+                      color: isDark ? Colors.grey.shade400 : Colors.grey,
+                    )
                         : null,
                   ),
-                  // ✅ Image Upload Button - TEMPORARY DISABLED
-                  // if (_isEditing)
-                  //   Positioned(
-                  //     bottom: 0,
-                  //     right: 0,
-                  //     child: CircleAvatar(
-                  //       radius: 18,
-                  //       backgroundColor: Colors.pink,
-                  //       child: IconButton(
-                  //         icon: const Icon(Icons.camera_alt, size: 18, color: Colors.white),
-                  //         onPressed: _pickImage,
-                  //       ),
-                  //     ),
-                  //   ),
+                  if (_isEditing)
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: CircleAvatar(
+                        radius: 18,
+                        backgroundColor: Colors.pink,
+                        child: IconButton(
+                          icon: const Icon(Icons.camera_alt, size: 18, color: Colors.white),
+                          onPressed: () {
+                            // Image picker disabled for now
+                          },
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -378,6 +331,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               icon: Icons.person,
               controller: _nameController,
               enabled: _isEditing,
+              isDark: isDark,
             ),
             const SizedBox(height: 16),
 
@@ -388,11 +342,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
               controller: _bioController,
               maxLines: 3,
               enabled: _isEditing,
+              isDark: isDark,
             ),
             const SizedBox(height: 16),
 
             // Birth Date
-            _buildDatePicker(),
+            _buildDatePicker(theme, isDark),
             const SizedBox(height: 16),
 
             // Home Town and Country
@@ -404,11 +359,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     icon: Icons.location_city,
                     controller: _homeTownController,
                     enabled: _isEditing,
+                    isDark: isDark,
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: _buildCountryDropdown(),
+                  child: _buildCountryDropdown(theme, isDark),
                 ),
               ],
             ),
@@ -422,6 +378,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               onChanged: _isEditing
                   ? (value) => setState(() => _selectedGender = value)
                   : null,
+              isDark: isDark,
             ),
             const SizedBox(height: 16),
 
@@ -433,14 +390,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
               onChanged: _isEditing
                   ? (value) => setState(() => _selectedPartnerGender = value)
                   : null,
+              isDark: isDark,
             ),
             const SizedBox(height: 16),
 
             // Interests (Multi-select)
-            _buildInterestsMultiSelect(),
+            _buildInterestsMultiSelect(isDark),
             const SizedBox(height: 24),
 
-            // Save Button (visible when editing)
+            // Save Button
             if (_isEditing)
               SizedBox(
                 width: double.infinity,
@@ -466,48 +424,74 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // Helper method for text fields
+  // Text Field Builder with Theme Support
   Widget _buildTextField({
     required String label,
     required IconData icon,
     required TextEditingController controller,
     int maxLines = 1,
     bool enabled = true,
+    required bool isDark,
   }) {
     return TextFormField(
       controller: controller,
       enabled: enabled,
       maxLines: maxLines,
+      style: TextStyle(
+        color: isDark ? Colors.white : Colors.black87,
+      ),
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(icon),
+        labelStyle: TextStyle(
+          color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+        ),
+        prefixIcon: Icon(
+          icon,
+          color: isDark ? Colors.pink.shade200 : Colors.pink,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.grey.shade300),
+          borderSide: BorderSide(
+            color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+          ),
         ),
-        filled: !enabled,
-        fillColor: !enabled ? Colors.grey.shade100 : null,
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Colors.pink, width: 2),
+        ),
+        filled: true,
+        fillColor: enabled
+            ? (isDark ? Colors.grey.shade900 : Colors.white)
+            : (isDark ? Colors.grey.shade800 : Colors.grey.shade100), // Fixed: shade850 -> shade800
       ),
     );
   }
 
-  // Helper method for date picker
-  Widget _buildDatePicker() {
+  // Date Picker with Theme Support
+  Widget _buildDatePicker(ThemeData theme, bool isDark) {
     return InkWell(
       onTap: _isEditing ? () => _selectDate(context) : null,
       child: InputDecorator(
         decoration: InputDecoration(
           labelText: 'Birth Date',
-          prefixIcon: const Icon(Icons.cake),
+          labelStyle: TextStyle(
+            color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+          ),
+          prefixIcon: Icon(
+            Icons.cake,
+            color: isDark ? Colors.pink.shade200 : Colors.pink,
+          ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
           ),
           enabled: _isEditing,
-          filled: !_isEditing,
-          fillColor: !_isEditing ? Colors.grey.shade100 : null,
+          filled: true,
+          fillColor: _isEditing
+              ? (isDark ? Colors.grey.shade900 : Colors.white)
+              : (isDark ? Colors.grey.shade800 : Colors.grey.shade100), // Fixed: shade850 -> shade800
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -517,34 +501,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ? DateFormat('MMM dd, yyyy').format(_selectedDate!)
                   : 'Select your birth date',
               style: TextStyle(
-                color: _selectedDate != null ? Colors.black : Colors.grey,
+                color: _selectedDate != null
+                    ? (isDark ? Colors.white : Colors.black87)
+                    : (isDark ? Colors.grey.shade500 : Colors.grey),
               ),
             ),
             if (_isEditing)
-              const Icon(Icons.arrow_drop_down, color: Colors.grey),
+              Icon(
+                Icons.arrow_drop_down,
+                color: isDark ? Colors.grey.shade400 : Colors.grey,
+              ),
           ],
         ),
       ),
     );
   }
 
-  // Helper method for dropdowns (gender, interested in)
+  // Dropdown with Theme Support
   Widget _buildDropdown({
     required String label,
     required String? value,
     required List<String> items,
     required Function(String?)? onChanged,
+    required bool isDark,
   }) {
     return InputDecorator(
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(label == 'Gender' ? Icons.people : Icons.favorite),
+        labelStyle: TextStyle(
+          color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+        ),
+        prefixIcon: Icon(
+          label == 'Gender' ? Icons.people : Icons.favorite,
+          color: isDark ? Colors.pink.shade200 : Colors.pink,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
         ),
         enabled: onChanged != null,
-        filled: onChanged == null,
-        fillColor: onChanged == null ? Colors.grey.shade100 : null,
+        filled: true,
+        fillColor: onChanged != null
+            ? (isDark ? Colors.grey.shade900 : Colors.white)
+            : (isDark ? Colors.grey.shade800 : Colors.grey.shade100), // Fixed: shade850 -> shade800
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
@@ -552,20 +550,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
           isDense: true,
           isExpanded: true,
           onChanged: onChanged,
+          dropdownColor: isDark ? Colors.grey.shade900 : Colors.white,
+          style: TextStyle(
+            color: isDark ? Colors.white : Colors.black87,
+          ),
           items: items.map((String item) {
             return DropdownMenuItem<String>(
               value: item,
               child: Text(item),
             );
           }).toList(),
-          hint: Text('Select $label'),
+          hint: Text(
+            'Select $label',
+            style: TextStyle(
+              color: isDark ? Colors.grey.shade500 : Colors.grey,
+            ),
+          ),
         ),
       ),
     );
   }
 
-  // Country dropdown method
-  Widget _buildCountryDropdown() {
+  // Country Dropdown with Theme Support
+  Widget _buildCountryDropdown(ThemeData theme, bool isDark) {
     String? currentValue = _countryController.text.isNotEmpty
         && _countryOptions.contains(_countryController.text)
         ? _countryController.text
@@ -574,13 +581,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return InputDecorator(
       decoration: InputDecoration(
         labelText: 'Country',
-        prefixIcon: const Icon(Icons.public),
+        labelStyle: TextStyle(
+          color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+        ),
+        prefixIcon: Icon(
+          Icons.public,
+          color: isDark ? Colors.pink.shade200 : Colors.pink,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
         ),
         enabled: _isEditing,
-        filled: !_isEditing,
-        fillColor: !_isEditing ? Colors.grey.shade100 : null,
+        filled: true,
+        fillColor: _isEditing
+            ? (isDark ? Colors.grey.shade900 : Colors.white)
+            : (isDark ? Colors.grey.shade800 : Colors.grey.shade100), // Fixed: shade850 -> shade800
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
@@ -592,6 +607,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               _countryController.text = newValue ?? '';
             });
           } : null,
+          dropdownColor: isDark ? Colors.grey.shade900 : Colors.white,
+          style: TextStyle(
+            color: isDark ? Colors.white : Colors.black87,
+          ),
           items: _countryOptions.map((String country) {
             return DropdownMenuItem<String>(
               value: country,
@@ -609,18 +628,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // Helper method for interests multi-select
-  Widget _buildInterestsMultiSelect() {
+  // Interests Multi-select with Theme Support
+  Widget _buildInterestsMultiSelect(bool isDark) {
     return InputDecorator(
       decoration: InputDecoration(
         labelText: 'Interests',
-        prefixIcon: const Icon(Icons.interests),
+        labelStyle: TextStyle(
+          color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+        ),
+        prefixIcon: Icon(
+          Icons.interests,
+          color: isDark ? Colors.pink.shade200 : Colors.pink,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
         ),
         enabled: _isEditing,
-        filled: !_isEditing,
-        fillColor: !_isEditing ? Colors.grey.shade100 : null,
+        filled: true,
+        fillColor: _isEditing
+            ? (isDark ? Colors.grey.shade900 : Colors.white)
+            : (isDark ? Colors.grey.shade800 : Colors.grey.shade100), // Fixed: shade850 -> shade800
       ),
       child: _isEditing
           ? MultiSelectBottomSheetField(
@@ -632,7 +659,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ? 'Select your interests'
               : '${_selectedInterests.length} selected',
           style: TextStyle(
-            color: _selectedInterests.isEmpty ? Colors.grey : Colors.black,
+            color: _selectedInterests.isEmpty
+                ? (isDark ? Colors.grey.shade500 : Colors.grey)
+                : (isDark ? Colors.white : Colors.black87),
           ),
         ),
         items: _interestOptions.map((e) => MultiSelectItem(e, e)).toList(),
@@ -645,8 +674,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         },
         initialValue: _selectedInterests,
         chipDisplay: MultiSelectChipDisplay(
-          chipColor: Colors.pink.shade50,
-          textStyle: const TextStyle(color: Colors.pink),
+          chipColor: isDark ? Colors.pink.shade900 : Colors.pink.shade50,
+          textStyle: TextStyle(
+            color: isDark ? Colors.pink.shade200 : Colors.pink,
+          ),
           onTap: (item) {
             setState(() {
               _selectedInterests.remove(item);
@@ -658,19 +689,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
         spacing: 8,
         runSpacing: 8,
         children: _selectedInterests.isEmpty
-            ? [const Text('No interests selected', style: TextStyle(color: Colors.grey))]
+            ? [
+          Text(
+            'No interests selected',
+            style: TextStyle(
+              color: isDark ? Colors.grey.shade500 : Colors.grey,
+            ),
+          )
+        ]
             : _selectedInterests.map((interest) {
           return Chip(
             label: Text(interest),
-            backgroundColor: Colors.pink.shade50,
-            labelStyle: const TextStyle(color: Colors.pink),
+            backgroundColor: isDark ? Colors.pink.shade900 : Colors.pink.shade50,
+            labelStyle: TextStyle(
+              color: isDark ? Colors.pink.shade200 : Colors.pink,
+            ),
           );
         }).toList(),
       ),
     );
   }
 
-  // Date picker function
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
