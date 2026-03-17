@@ -7,12 +7,49 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:112385527944:android:f45344669716c66caecf3d",
+        "android_client_info": {
+          "package_name": "com.oxiai.spark"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "112385527944-gckmsgqmd8j55g74f2u6p6pte8veo145.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCDPf-cY5T7eWHvvX93SewfkRLf_zHXaHo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "112385527944-gckmsgqmd8j55g74f2u6p6pte8veo145.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:112385527944:android:837d6c284532f487aecf3d",
         "android_client_info": {
           "package_name": "com.sasika.spark"
         }
       },
       "oauth_client": [
+        {
+          "client_id": "112385527944-iuqp681bfmpu46uv9paue5m7u7qg6j1m.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.sasika.spark",
+            "certificate_hash": "4e0fc009d9fd51c63a8b66ae2c40ced071d0d128"
+          }
+        },
         {
           "client_id": "112385527944-gckmsgqmd8j55g74f2u6p6pte8veo145.apps.googleusercontent.com",
           "client_type": 3
