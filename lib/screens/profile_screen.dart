@@ -115,6 +115,51 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return null;
   }
 
+  // ✅ Image picker - ENABLED
+  Future<void> _pickImage() async {
+    final XFile? image = await _picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 512,
+      maxHeight: 512,
+      imageQuality: 75,
+    );
+
+    if (image != null) {
+      setState(() {
+        _profileImage = File(image.path);
+      });
+      print('📸 Image selected: ${image.path}');
+    }
+  }
+
+  // ✅ Upload image - ENABLED
+  Future<String?> _uploadImage() async {
+    if (_profileImage == null) {
+      print('📸 No new image to upload, using existing: $_profileImageUrl');
+      return _profileImageUrl;
+    }
+
+    try {
+      final userId = _auth.currentUser!.uid;
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final ref = _storage.ref().child('profile_images').child('${userId}_$timestamp.jpg');
+
+      print('📸 Uploading image to: ${ref.fullPath}');
+
+      await ref.putFile(
+        _profileImage!,
+        SettableMetadata(contentType: 'image/jpeg'),
+      );
+
+      final imageUrl = await ref.getDownloadURL();
+      print('✅ Image uploaded successfully: $imageUrl');
+      return imageUrl;
+    } catch (e) {
+      print('❌ Error uploading image: $e');
+      return _profileImageUrl;
+    }
+  }
+
   Future<void> _loadUserProfile() async {
     setState(() => _isLoading = true);
 
@@ -160,6 +205,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  // ✅ Save profile with image upload - ENABLED
   Future<void> _saveProfile() async {
     if (_nameController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -182,6 +228,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       print('📝 Saving profile for user: $userId');
 
+      // ✅ Upload image and get URL
+      final imageUrl = await _uploadImage();
+
+      if (imageUrl != null) {
+        _profileImageUrl = imageUrl;
+      }
+
       final profileData = {
         'name': _nameController.text.trim(),
         'bio': _bioController.text.trim(),
@@ -200,6 +253,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       print('📝 Saving to Firestore with image URL: ${profileData['profileImageUrl']}');
 
       await _firestore.collection('users').doc(userId).set(profileData, SetOptions(merge: true));
+
+      // Clear local file after successful upload
+      _profileImage = null;
 
       setState(() {
         _isEditing = false;
@@ -289,7 +345,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // Profile Picture
+            // Profile Picture - ✅ Camera Button ENABLED
             Center(
               child: Stack(
                 children: [
@@ -314,9 +370,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         backgroundColor: Colors.pink,
                         child: IconButton(
                           icon: const Icon(Icons.camera_alt, size: 18, color: Colors.white),
-                          onPressed: () {
-                            // Image picker disabled for now
-                          },
+                          onPressed: _pickImage, // ✅ ENABLED
                         ),
                       ),
                     ),
@@ -465,7 +519,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         filled: true,
         fillColor: enabled
             ? (isDark ? Colors.grey.shade900 : Colors.white)
-            : (isDark ? Colors.grey.shade800 : Colors.grey.shade100), // Fixed: shade850 -> shade800
+            : (isDark ? Colors.grey.shade800 : Colors.grey.shade100),
       ),
     );
   }
@@ -491,7 +545,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           filled: true,
           fillColor: _isEditing
               ? (isDark ? Colors.grey.shade900 : Colors.white)
-              : (isDark ? Colors.grey.shade800 : Colors.grey.shade100), // Fixed: shade850 -> shade800
+              : (isDark ? Colors.grey.shade800 : Colors.grey.shade100),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -542,7 +596,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         filled: true,
         fillColor: onChanged != null
             ? (isDark ? Colors.grey.shade900 : Colors.white)
-            : (isDark ? Colors.grey.shade800 : Colors.grey.shade100), // Fixed: shade850 -> shade800
+            : (isDark ? Colors.grey.shade800 : Colors.grey.shade100),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
@@ -595,7 +649,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         filled: true,
         fillColor: _isEditing
             ? (isDark ? Colors.grey.shade900 : Colors.white)
-            : (isDark ? Colors.grey.shade800 : Colors.grey.shade100), // Fixed: shade850 -> shade800
+            : (isDark ? Colors.grey.shade800 : Colors.grey.shade100),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
@@ -647,7 +701,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         filled: true,
         fillColor: _isEditing
             ? (isDark ? Colors.grey.shade900 : Colors.white)
-            : (isDark ? Colors.grey.shade800 : Colors.grey.shade100), // Fixed: shade850 -> shade800
+            : (isDark ? Colors.grey.shade800 : Colors.grey.shade100),
       ),
       child: _isEditing
           ? MultiSelectBottomSheetField(

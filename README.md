@@ -186,5 +186,13 @@ Kalu Arachchi - hnkaluarachchi17@gmail.com
 <div align="center">
   Made with ❤️ by Kalu Arachchi
   <br>
+
   ⭐ Star this repo if you like it!
+flutter build apk --release
+
+flutter build appbundle --release
+
+# Phone එක connect කරලා
+cd ~/Documents/Flutters/clon/flutter-firebase-spark-project-main
+adb install build/app/outputs/flutter-apk/app-release.apk
 </div>
