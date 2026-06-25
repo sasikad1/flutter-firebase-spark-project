@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "112385527944-cerdhjalr3q6mkaskdr9lc4lopg5u9as.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.oxiai.sparkapp",
+            "certificate_hash": "f874cd5f34f015c0a576c5edd95bda925ccda138"
+          }
+        },
+        {
           "client_id": "112385527944-h3tep85bu5hl0qmh8qu20btflk1sugrv.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {

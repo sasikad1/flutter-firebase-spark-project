@@ -354,7 +354,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _showDeleteAccountDialog() async {
     final passwordController = TextEditingController();
     final formKey = GlobalKey<FormState>();
-    bool _firstStepComplete = false;
+    bool firstStepComplete = false;
 
     return showDialog(
       context: context,
@@ -368,9 +368,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 color: Colors.red,
                 size: 40,
               ),
-              content: Container(
+              content: SizedBox(
                 width: double.maxFinite,
-                child: !_firstStepComplete
+                child: !firstStepComplete
                     ? Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -389,7 +389,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     const Text('• You will lose all matches and messages'),
                     const SizedBox(height: 16),
                     ElevatedButton(
-                      onPressed: () => setState(() => _firstStepComplete = true),
+                      onPressed: () => setState(() => firstStepComplete = true),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.red,
                         foregroundColor: Colors.white,
@@ -429,7 +429,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
               ),
-              actions: !_firstStepComplete
+              actions: !firstStepComplete
                   ? [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
@@ -549,7 +549,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 subtitle: const Text('Change your name, bio, photos'),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                 onTap: () {
-                  DefaultTabController.of(context)?.animateTo(3);
+                  DefaultTabController.of(context).animateTo(3);
                 },
               ),
               const Divider(),

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'profile_screen.dart';
 import 'discovery_screen.dart';
 import 'matches_screen.dart';
@@ -135,7 +134,7 @@ class HomeScreen extends StatelessWidget {
           const SizedBox(height: 30),
           ElevatedButton(
             onPressed: () {
-              DefaultTabController.of(context)?.animateTo(1);
+              DefaultTabController.of(context).animateTo(1);
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.pink,

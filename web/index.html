@@ -1,25 +1,54 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
   <meta charset="UTF-8">
   <title>Spark</title>
-  <!-- Google Sign-In Client ID -->
-  <meta name="google-signin-client_id" content="112385527944-gckmsgqmd8j55g74f2u6p6pte8veo145.apps.googleusercontent.com">
-</head>
+   <!-- ✅ Web Client ID meta tag -->
+<meta name="google-signin-client_id" 
+      content="112385527944-u9kg3b4inptnkn7sv87plvjf1atlvgr9.apps.googleusercontent.com">
+
+  <!-- ✅ GSI script — must be in <head> -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+   <link rel="manifest" href="manifest.js
 <body>
-<script src="flutter.js" defer></script>
-<script>
-  window.addEventListener('load', function (ev) {
-    _flutter.loader.loadEntrypoint({
-      serviceWorker: {
-        serviceWorkerVersion: {{flutter_service_worker_version}},
+  <script src="flutter.js" defer></script>
+  
+  <script>
+    // ✅ Wait for flutter.js to load
+    window.addEventListener('load', function (ev) {
+      // Check if _flutter is defined
+      if (typeof _flutter !== 'undefined') {
+        _flutter.loader.loadEntrypoint({
+          serviceWorker: {
+            serviceWorkerVersion: {{flutter_service_worker_version}},
+          }
+        }).then(function(engineInitializer) {
+          return engineInitializer.initializeEngine();
+        }).then(function(appRunner) {
+          return appRunner.runApp();
+        });
+      } else {
+        console.error('Flutter loader not found. Retrying...');
+        // Retry after 1 second
+        setTimeout(function() {
+          if (typeof _flutter !== 'undefined') {
+            _flutter.loader.loadEntrypoint({
+              serviceWorker: {
+                serviceWorkerVersion: {{flutter_service_worker_version}},
+              }
+            }).then(function(engineInitializer) {
+              return engineInitializer.initializeEngine();
+            }).then(function(appRunner) {
+              return appRunner.runApp();
+            });
+          }
+        }, 1000);
       }
-    }).then(function(engineInitializer) {
-      return engineInitializer.initializeEngine();
-    }).then(function(appRunner) {
-      return appRunner.runApp();
     });
-  });
-</script>
+  </script>
 </body>
 </html>

@@ -1,5 +1,15 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.oxiai.sparkapp">
+
+    <!-- ✅ Camera permission (for taking photos directly) -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- ✅ Storage permissions (Android 12 and below) -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+
+    <!-- ✅ Media images permission (Android 13+) -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+
     <application
         android:label="spark"
         android:name="${applicationName}"

@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart';
 import 'chat_screen.dart';
-import 'profile_details_screen.dart'; // Full profile screen (විකල්පය)
+// Full profile screen (විකල්පය)
 
 class MatchesScreen extends StatefulWidget {
   const MatchesScreen({super.key});
@@ -86,7 +85,7 @@ class _MatchesScreenState extends State<MatchesScreen> {
                   ElevatedButton(
                     onPressed: () {
                       // Go to Discover tab
-                      DefaultTabController.of(context)?.animateTo(1);
+                      DefaultTabController.of(context).animateTo(1);
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.pink,

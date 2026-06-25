@@ -401,7 +401,7 @@ class _DiscoveryScreenState extends State<DiscoveryScreen> {
               children: [
                 DropdownButtonFormField<String>(
                   decoration: const InputDecoration(labelText: 'Gender'),
-                  value: _selectedGender,
+                  initialValue: _selectedGender,
                   items: const [
                     DropdownMenuItem(value: null, child: Text('All')),
                     DropdownMenuItem(value: 'Male', child: Text('Male')),

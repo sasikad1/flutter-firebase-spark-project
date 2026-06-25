@@ -1,13 +1,14 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:provider/provider.dart'; // Add this for provider
+import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'screens/home_screen.dart';
 import 'services/presence_service.dart';
-import 'providers/theme_provider.dart'; // Add theme provider
+import 'providers/theme_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -15,7 +16,7 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   runApp(
-    // Wrap with MultiProvider for theme management
+    // ✅ Wrap with MultiProvider for theme management
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
@@ -216,29 +217,34 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
-  // Google Sign-In Function
+  // ✅ Updated Google Sign-In for Web + Android
   Future<void> _signInWithGoogle() async {
     setState(() => _isLoading = true);
 
     try {
-      // Google Sign-In process
-      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+      // ✅ Pass clientId explicitly for web
+      final GoogleSignIn googleSignIn = GoogleSignIn(
+        clientId: kIsWeb
+            ? '112385527944-u9kg3b4inptnkn7sv87plvjf1atlvgr9.apps.googleusercontent.com'
+            : null,
+        scopes: ['email', 'profile'],
+      );
+
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
 
       if (googleUser == null) {
         setState(() => _isLoading = false);
-        return; // User canceled sign-in
+        return; // User canceled
       }
 
       final GoogleSignInAuthentication googleAuth =
-      await googleUser.authentication;
+          await googleUser.authentication;
 
-      // Create Firebase credential
       final credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
-      // Sign in to Firebase
       await _auth.signInWithCredential(credential);
 
     } catch (e) {
