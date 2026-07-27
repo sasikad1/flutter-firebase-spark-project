@@ -9,6 +9,7 @@ import 'firebase_options.dart';
 import 'screens/home_screen.dart';
 import 'services/presence_service.dart';
 import 'providers/theme_provider.dart';
+import 'services/network_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,7 +17,6 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
   runApp(
-    // ✅ Wrap with MultiProvider for theme management
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
@@ -26,6 +26,7 @@ void main() async {
   );
 }
 
+// ✅ MyApp - StatefulWidget (Observer pattern for lifecycle)
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
@@ -33,11 +34,17 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
+// ✅ _MyAppState with WidgetsBindingObserver
 class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    
+    // ✅ Check internet on app start
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkInternetAndShowDialog();
+    });
   }
 
   @override
@@ -70,6 +77,14 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     }
   }
 
+  // ✅ Check internet and show dialog
+  void _checkInternetAndShowDialog() async {
+    bool hasInternet = await NetworkService().hasInternet();
+    if (!hasInternet && mounted) {
+      NetworkService().showNoInternetDialog(context);
+    }
+  }
+
   // Check if user has profile, if not create one
   Future<void> _checkAndCreateUserProfile(User user) async {
     final firestore = FirebaseFirestore.instance;
@@ -78,7 +93,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       final docSnapshot = await firestore.collection('users').doc(user.uid).get();
 
       if (!docSnapshot.exists) {
-        // Create new user profile with Google data
         final userData = {
           'name': user.displayName ?? '',
           'email': user.email ?? '',
@@ -106,21 +120,17 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    // Consumer to listen to theme changes
     return Consumer<ThemeProvider>(
       builder: (context, themeProvider, child) {
         return MaterialApp(
           title: 'Spark Dating App',
-          // Light theme
           theme: themeProvider.getThemeData(false),
-          // Dark theme
           darkTheme: themeProvider.getThemeData(true),
-          // Theme mode based on user preference
           themeMode: themeProvider.currentTheme == AppTheme.system
               ? ThemeMode.system
               : themeProvider.currentTheme == AppTheme.dark
-              ? ThemeMode.dark
-              : ThemeMode.light,
+                  ? ThemeMode.dark
+                  : ThemeMode.light,
           home: StreamBuilder<User?>(
             stream: FirebaseAuth.instance.authStateChanges(),
             builder: (context, snapshot) {
@@ -132,7 +142,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
               if (snapshot.hasData) {
                 final user = snapshot.data!;
 
-                // Check/create profile when user logs in
                 WidgetsBinding.instance.addPostFrameCallback((_) async {
                   await _checkAndCreateUserProfile(user);
                   PresenceService().setOnline(true);
@@ -174,9 +183,17 @@ class _AuthScreenState extends State<AuthScreen> {
     super.dispose();
   }
 
-  // Email/Password Sign In/Sign Up
+  // ✅ Email/Password Sign In/Sign Up with Internet Check
   void _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    
+    // ✅ Check internet before login
+    bool hasInternet = await NetworkService().hasInternet();
+    if (!hasInternet) {
+      NetworkService().showNoInternetDialog(context);
+      return;
+    }
+    
     setState(() => _isLoading = true);
 
     try {
@@ -217,12 +234,19 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
-  // ✅ Updated Google Sign-In for Web + Android
+  // ✅ Google Sign-In with Internet Check
   Future<void> _signInWithGoogle() async {
     setState(() => _isLoading = true);
 
     try {
-      // ✅ Pass clientId explicitly for web
+      // ✅ Check internet before Google Sign-In
+      bool hasInternet = await NetworkService().hasInternet();
+      if (!hasInternet) {
+        NetworkService().showNoInternetDialog(context);
+        setState(() => _isLoading = false);
+        return;
+      }
+
       final GoogleSignIn googleSignIn = GoogleSignIn(
         clientId: kIsWeb
             ? '112385527944-u9kg3b4inptnkn7sv87plvjf1atlvgr9.apps.googleusercontent.com'
@@ -234,7 +258,7 @@ class _AuthScreenState extends State<AuthScreen> {
 
       if (googleUser == null) {
         setState(() => _isLoading = false);
-        return; // User canceled
+        return;
       }
 
       final GoogleSignInAuthentication googleAuth =
@@ -262,7 +286,6 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Get current theme for dynamic colors
     final theme = Theme.of(context);
 
     return Scaffold(
