@@ -21,11 +21,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _showProfile = true;
   bool _isEmailVerified = false;
 
+  // ✅ Track initial values to detect changes
+  late bool _initialShowOnlineStatus;
+  late bool _initialShowProfile;
+
   @override
   void initState() {
     super.initState();
     _loadUserSettings();
     _checkEmailVerification();
+  }
+
+  // ✅ Auto-save when leaving screen
+  @override
+  void dispose() {
+    _saveSettingsIfChanged();
+    super.dispose();
   }
 
   // Check email verification status
@@ -108,6 +119,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         setState(() {
           _showOnlineStatus = data['showOnlineStatus'] ?? true;
           _showProfile = data['showProfile'] ?? true;
+          // ✅ Store initial values
+          _initialShowOnlineStatus = _showOnlineStatus;
+          _initialShowProfile = _showProfile;
         });
       }
     } catch (e) {
@@ -116,12 +130,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
+  // ✅ Check if settings changed and save if needed
+  Future<void> _saveSettingsIfChanged() async {
+    // Check if values changed
+    bool changed = (_showOnlineStatus != _initialShowOnlineStatus) ||
+                   (_showProfile != _initialShowProfile);
+    
+    if (changed) {
+      print('🔄 Settings changed - Auto-saving...');
+      await _saveSettings(showSnackBar: false);
+    }
+  }
+
   // Save settings to Firestore
-  Future<void> _saveSettings() async {
+  Future<void> _saveSettings({bool showSnackBar = true}) async {
+    // Don't save if already loading
+    if (_isLoading) return;
+
     setState(() => _isLoading = true);
 
     final userId = _auth.currentUser?.uid;
-    if (userId == null) return;
+    if (userId == null) {
+      setState(() => _isLoading = false);
+      return;
+    }
 
     try {
       await _firestore.collection('users').doc(userId).update({
@@ -130,12 +162,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
         'settingsUpdatedAt': FieldValue.serverTimestamp(),
       });
 
-      if (mounted) {
+      // ✅ Update initial values after save
+      _initialShowOnlineStatus = _showOnlineStatus;
+      _initialShowProfile = _showProfile;
+
+      if (showSnackBar && mounted) {
         _showSuccessSnackBar('Settings saved successfully!');
       }
+      
+      print('✅ Settings saved: showProfile=$_showProfile, showOnlineStatus=$_showOnlineStatus');
+      
     } catch (e) {
       print('Error saving settings: $e');
-      if (mounted) {
+      if (showSnackBar && mounted) {
         _showErrorSnackBar('Failed to save settings');
       }
     } finally {
@@ -530,7 +569,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.save),
-            onPressed: _isLoading ? null : _saveSettings,
+            onPressed: _isLoading ? null : () => _saveSettings(showSnackBar: true),
           ),
         ],
       ),
@@ -549,6 +588,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 subtitle: const Text('Change your name, bio, photos'),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                 onTap: () {
+                  // ✅ Auto-save before navigating
+                  _saveSettingsIfChanged();
                   DefaultTabController.of(context).animateTo(3);
                 },
               ),
@@ -667,7 +708,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 title: const Text('Show Online Status'),
                 subtitle: const Text('Let others see when you\'re online'),
                 value: _showOnlineStatus,
-                onChanged: _isLoading ? null : (value) => setState(() => _showOnlineStatus = value),
+                onChanged: _isLoading ? null : (value) {
+                  setState(() {
+                    _showOnlineStatus = value;
+                  });
+                },
                 secondary: Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
@@ -681,7 +726,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 title: const Text('Show Profile'),
                 subtitle: const Text('Make your profile visible to others'),
                 value: _showProfile,
-                onChanged: _isLoading ? null : (value) => setState(() => _showProfile = value),
+                onChanged: _isLoading ? null : (value) {
+                  setState(() {
+                    _showProfile = value;
+                  });
+                  // ✅ Auto-save when toggled
+                  _saveSettings(showSnackBar: false);
+                },
               ),
 
               // Blocked Users
@@ -753,7 +804,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: const Icon(Icons.info, color: Colors.pink),
                 ),
                 title: const Text('Version'),
-                subtitle: const Text('1.0.0'),
+                subtitle: const Text('1.0.3+4'),
               ),
               const SizedBox(height: 24),
             ],

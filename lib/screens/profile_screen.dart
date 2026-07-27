@@ -23,8 +23,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool _isLoading = false;
   bool _isEditing = false;
   bool _isEmailVerified = false;
-  File? _profileImage;
-  String? _profileImageUrl;
+  
+  // ✅ Privacy settings
+  bool _showOnlineStatus = true;
+  bool _showProfile = true;
 
   // Text Controllers
   final _nameController = TextEditingController();
@@ -80,20 +82,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     'New Zealand',
   ];
 
+  File? _profileImage;
+  String? _profileImageUrl;
+
   @override
   void initState() {
     super.initState();
     _loadUserProfile();
     _checkEmailVerification();
-  }
-
-  void _checkEmailVerification() {
-    final user = _auth.currentUser;
-    if (user != null) {
-      setState(() {
-        _isEmailVerified = user.emailVerified;
-      });
-    }
+    _loadSettings();
   }
 
   @override
@@ -103,6 +100,119 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _homeTownController.dispose();
     _countryController.dispose();
     super.dispose();
+  }
+
+  // ✅ Load settings from Firestore
+  Future<void> _loadSettings() async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) return;
+    
+    try {
+      final doc = await _firestore.collection('users').doc(userId).get();
+      if (doc.exists) {
+        setState(() {
+          _showOnlineStatus = doc.data()?['showOnlineStatus'] ?? true;
+          _showProfile = doc.data()?['showProfile'] ?? true;
+        });
+      }
+    } catch (e) {
+      print('Error loading settings: $e');
+    }
+  }
+
+  // ✅ Update online status visibility
+  Future<void> _updateOnlineStatusVisibility(bool value) async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) return;
+
+    try {
+      await _firestore.collection('users').doc(userId).update({
+        'showOnlineStatus': value,
+        'settingsUpdatedAt': FieldValue.serverTimestamp(),
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(value ? 'Online status visible to others' : 'Online status hidden'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error updating online status visibility: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // ✅ Update profile visibility
+  Future<void> _updateProfileVisibility(bool value) async {
+    final userId = _auth.currentUser?.uid;
+    if (userId == null) return;
+
+    try {
+      await _firestore.collection('users').doc(userId).update({
+        'showProfile': value,
+        'settingsUpdatedAt': FieldValue.serverTimestamp(),
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(value ? 'Profile visible to others' : 'Profile hidden'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error updating profile visibility: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // ✅ Check email verification with reload
+  Future<void> _checkEmailVerification() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    try {
+      await user.reload();
+      final updatedUser = _auth.currentUser;
+      
+      if (updatedUser != null) {
+        final isVerified = updatedUser.emailVerified;
+        
+        setState(() {
+          _isEmailVerified = isVerified;
+        });
+
+        if (isVerified) {
+          await _firestore.collection('users').doc(user.uid).update({
+            'emailVerified': true,
+            'verifiedAt': FieldValue.serverTimestamp(),
+          });
+          print('✅ Email verification status updated in Firestore');
+        }
+      }
+    } catch (e) {
+      print('❌ Error checking email verification: $e');
+    }
   }
 
   ImageProvider? _getProfileImage() {
@@ -115,7 +225,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return null;
   }
 
-  // ✅ Image picker - ENABLED
   Future<void> _pickImage() async {
     final XFile? image = await _picker.pickImage(
       source: ImageSource.gallery,
@@ -132,7 +241,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // ✅ Upload image - ENABLED
   Future<String?> _uploadImage() async {
     if (_profileImage == null) {
       print('📸 No new image to upload, using existing: $_profileImageUrl');
@@ -205,7 +313,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  // ✅ Save profile with image upload - ENABLED
   Future<void> _saveProfile() async {
     if (_nameController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -228,7 +335,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       print('📝 Saving profile for user: $userId');
 
-      // ✅ Upload image and get URL
       final imageUrl = await _uploadImage();
 
       if (imageUrl != null) {
@@ -247,6 +353,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'profileImageUrl': _profileImageUrl,
         'email': _auth.currentUser!.email,
         'emailVerified': _isEmailVerified,
+        'showOnlineStatus': _showOnlineStatus,
+        'showProfile': _showProfile,
         'updatedAt': FieldValue.serverTimestamp(),
       };
 
@@ -254,7 +362,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       await _firestore.collection('users').doc(userId).set(profileData, SetOptions(merge: true));
 
-      // Clear local file after successful upload
       _profileImage = null;
 
       setState(() {
@@ -288,6 +395,90 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
+    // ✅ If profile is hidden and not editing, show hidden message
+    if (!_showProfile && !_isEditing) {
+      return Scaffold(
+        appBar: AppBar(
+          title: Row(
+            children: [
+              const Text('My Profile'),
+              const SizedBox(width: 8),
+              if (_isEmailVerified)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.blue,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.verified, color: Colors.white, size: 14),
+                      SizedBox(width: 4),
+                      Text(
+                        'Verified',
+                        style: TextStyle(color: Colors.white, fontSize: 10),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+          backgroundColor: Colors.pink,
+          foregroundColor: Colors.white,
+          automaticallyImplyLeading: false,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.edit),
+              onPressed: () {
+                setState(() => _isEditing = true);
+              },
+            ),
+          ],
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.visibility_off,
+                size: 80,
+                color: Colors.grey.shade400,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Your profile is hidden',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Tap edit to show your profile',
+                style: TextStyle(
+                  color: Colors.grey.shade500,
+                ),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () {
+                  setState(() => _isEditing = true);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.pink,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Edit Profile'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // ✅ Normal profile UI with Privacy Settings
     return Scaffold(
       appBar: AppBar(
         title: Row(
@@ -345,7 +536,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // Profile Picture - ✅ Camera Button ENABLED
+            // Profile Picture
             Center(
               child: Stack(
                 children: [
@@ -370,7 +561,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         backgroundColor: Colors.pink,
                         child: IconButton(
                           icon: const Icon(Icons.camera_alt, size: 18, color: Colors.white),
-                          onPressed: _pickImage, // ✅ ENABLED
+                          onPressed: _pickImage,
                         ),
                       ),
                     ),
@@ -450,6 +641,208 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             // Interests (Multi-select)
             _buildInterestsMultiSelect(isDark),
+            const SizedBox(height: 24),
+
+            // ✅ PRIVACY SETTINGS SECTION (NEW)
+            if (!_isEditing) ...[
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.grey.shade800 : Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isDark ? Colors.grey.shade700 : Colors.grey.shade200,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.privacy_tip,
+                          color: isDark ? Colors.pink.shade200 : Colors.pink,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Privacy Settings',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    
+                    // Show Online Status (View only when not editing)
+                    SwitchListTile(
+                      title: Text(
+                        'Show Online Status',
+                        style: TextStyle(
+                          color: isDark ? Colors.white : Colors.black87,
+                          fontSize: 14,
+                        ),
+                      ),
+                      subtitle: Text(
+                        'Let others see when you\'re online',
+                        style: TextStyle(
+                          color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                          fontSize: 12,
+                        ),
+                      ),
+                      value: _showOnlineStatus,
+                      onChanged: null, // Read-only when not editing
+                      secondary: Icon(
+                        Icons.circle,
+                        color: _showOnlineStatus ? Colors.green : Colors.grey,
+                      ),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    
+                    const Divider(),
+                    
+                    // Show Profile (View only when not editing)
+                    SwitchListTile(
+                      title: Text(
+                        'Show Profile',
+                        style: TextStyle(
+                          color: isDark ? Colors.white : Colors.black87,
+                          fontSize: 14,
+                        ),
+                      ),
+                      subtitle: Text(
+                        'Make your profile visible to others',
+                        style: TextStyle(
+                          color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                          fontSize: 12,
+                        ),
+                      ),
+                      value: _showProfile,
+                      onChanged: null, // Read-only when not editing
+                      secondary: Icon(
+                        Icons.visibility,
+                        color: _showProfile ? Colors.green : Colors.grey,
+                      ),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '✏️ Tap Edit to change privacy settings',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+
+            // ✅ PRIVACY SETTINGS (EDIT MODE)
+            if (_isEditing) ...[
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.grey.shade800 : Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isDark ? Colors.grey.shade700 : Colors.grey.shade200,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.privacy_tip,
+                          color: isDark ? Colors.pink.shade200 : Colors.pink,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Privacy Settings',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: isDark ? Colors.white : Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    
+                    // Show Online Status Toggle (Editable)
+                    SwitchListTile(
+                      title: Text(
+                        'Show Online Status',
+                        style: TextStyle(
+                          color: isDark ? Colors.white : Colors.black87,
+                          fontSize: 14,
+                        ),
+                      ),
+                      subtitle: Text(
+                        'Let others see when you\'re online',
+                        style: TextStyle(
+                          color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                          fontSize: 12,
+                        ),
+                      ),
+                      value: _showOnlineStatus,
+                      onChanged: (value) {
+                        setState(() {
+                          _showOnlineStatus = value;
+                        });
+                        _updateOnlineStatusVisibility(value);
+                      },
+                      secondary: Icon(
+                        Icons.circle,
+                        color: _showOnlineStatus ? Colors.green : Colors.grey,
+                      ),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    
+                    const Divider(),
+                    
+                    // Show Profile Toggle (Editable)
+                    SwitchListTile(
+                      title: Text(
+                        'Show Profile',
+                        style: TextStyle(
+                          color: isDark ? Colors.white : Colors.black87,
+                          fontSize: 14,
+                        ),
+                      ),
+                      subtitle: Text(
+                        'Make your profile visible to others',
+                        style: TextStyle(
+                          color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                          fontSize: 12,
+                        ),
+                      ),
+                      value: _showProfile,
+                      onChanged: (value) {
+                        setState(() {
+                          _showProfile = value;
+                        });
+                        _updateProfileVisibility(value);
+                      },
+                      secondary: Icon(
+                        Icons.visibility,
+                        color: _showProfile ? Colors.green : Colors.grey,
+                      ),
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+
             const SizedBox(height: 24),
 
             // Save Button
