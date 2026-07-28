@@ -39,9 +39,6 @@ dependencies:
   provider: ^6.1.2
   shared_preferences: ^2.5.2
 
-  # ✅ URL Launcher for opening links
-  url_launcher: ^6.3.1
-
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -59,4 +56,11 @@ flutter_launcher_icons:
   image_path: "assets/app_icon.png"
   adaptive_icon_background: "#FF69B4"
   adaptive_icon_foreground: "assets/app_icon.png"
-  remove_alpha_ios: true
+xxX
+X
+x
+^x
+^X
+^T
+^T, ^X
+

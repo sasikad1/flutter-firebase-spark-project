@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'blocked_users_screen.dart';
 import '../providers/theme_provider.dart';
 
@@ -21,7 +22,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _showProfile = true;
   bool _isEmailVerified = false;
 
-  // ✅ Track initial values to detect changes
+  // Track initial values to detect changes
   late bool _initialShowOnlineStatus;
   late bool _initialShowProfile;
 
@@ -32,7 +33,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _checkEmailVerification();
   }
 
-  // ✅ Auto-save when leaving screen
+  // Auto-save when leaving screen
   @override
   void dispose() {
     _saveSettingsIfChanged();
@@ -119,7 +120,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         setState(() {
           _showOnlineStatus = data['showOnlineStatus'] ?? true;
           _showProfile = data['showProfile'] ?? true;
-          // ✅ Store initial values
           _initialShowOnlineStatus = _showOnlineStatus;
           _initialShowProfile = _showProfile;
         });
@@ -130,9 +130,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  // ✅ Check if settings changed and save if needed
+  // Check if settings changed and save if needed
   Future<void> _saveSettingsIfChanged() async {
-    // Check if values changed
     bool changed = (_showOnlineStatus != _initialShowOnlineStatus) ||
                    (_showProfile != _initialShowProfile);
     
@@ -144,7 +143,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   // Save settings to Firestore
   Future<void> _saveSettings({bool showSnackBar = true}) async {
-    // Don't save if already loading
     if (_isLoading) return;
 
     setState(() => _isLoading = true);
@@ -162,7 +160,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         'settingsUpdatedAt': FieldValue.serverTimestamp(),
       });
 
-      // ✅ Update initial values after save
       _initialShowOnlineStatus = _showOnlineStatus;
       _initialShowProfile = _showProfile;
 
@@ -206,7 +203,220 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // 🌙 Theme selection dialog
+  // ==================== USER GUIDE ====================
+  
+  Future<void> _showUserGuide() async {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.menu_book, color: Colors.pink),
+            const SizedBox(width: 8),
+            const Text('User Guide'),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildGuideSection(
+                icon: Icons.rocket_launch,
+                title: 'Getting Started',
+                steps: [
+                  'Complete your profile with photos and interests',
+                  'Set your preferences (gender, age range)',
+                  'Make sure your email is verified for a verified badge',
+                ],
+              ),
+              const Divider(height: 24),
+              _buildGuideSection(
+                icon: Icons.explore,
+                title: 'Finding Matches',
+                steps: [
+                  'Swipe through profiles in the Discover tab',
+                  'Tap ❤️ to Like someone',
+                  'Tap ✖️ to Pass on someone',
+                  'Use filters to find your perfect match',
+                ],
+              ),
+              const Divider(height: 24),
+              _buildGuideSection(
+                icon: Icons.favorite,
+                title: 'How Matching Works',
+                steps: [
+                  'When you Like someone, they won\'t know yet',
+                  'If they also Like you back, it\'s a MATCH! 🎉',
+                  'Matches appear in the Matches tab',
+                  'You can only chat with your matches',
+                  'One-sided Likes stay hidden until mutual',
+                ],
+              ),
+              const Divider(height: 24),
+              _buildGuideSection(
+                icon: Icons.chat,
+                title: 'Messaging',
+                steps: [
+                  'Tap a match to open the chat',
+                  'Send messages in real-time',
+                  'See when your match is online',
+                  'You can block users if needed',
+                ],
+              ),
+              const Divider(height: 24),
+              _buildGuideSection(
+                icon: Icons.privacy_tip,
+                title: 'Privacy & Safety',
+                steps: [
+                  'Control who sees your online status',
+                  'Hide your profile if needed',
+                  'Block unwanted users',
+                  'Your data is secure with Firebase',
+                ],
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.pink.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, color: Colors.pink),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '💡 Tip: Complete your profile with clear photos and interesting bio to get more matches!',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.pink.shade700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGuideSection({
+    required IconData icon,
+    required String title,
+    required List<String> steps,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 20, color: Colors.pink),
+            const SizedBox(width: 8),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.pink.shade700,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ...steps.map((step) => Padding(
+          padding: const EdgeInsets.only(left: 32, bottom: 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('• ', style: TextStyle(color: Colors.pink.shade300)),
+              Expanded(
+                child: Text(
+                  step,
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+                ),
+              ),
+            ],
+          ),
+        )),
+      ],
+    );
+  }
+
+  // ==================== URL LAUNCHER METHODS ====================
+  
+  Future<void> _openPrivacyPolicy() async {
+    final String urlString = 'https://hnkaluarachchi.github.io/Spark-dating/privacy-policy.html';
+    try {
+      if (await canLaunch(urlString)) {
+        await launch(urlString);
+      } else {
+        _showUrlDialog(urlString, 'Privacy Policy');
+      }
+    } catch (e) {
+      print('Error opening privacy policy: $e');
+      _showUrlDialog(urlString, 'Privacy Policy');
+    }
+  }
+
+  // ✅ Fallback dialog if browser can't open
+  void _showUrlDialog(String url, String title) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Please open this link in your browser:'),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: SelectableText(
+                url,
+                style: const TextStyle(color: Colors.blue),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _openPrivacyPolicy();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.pink,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Try Again'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ==================== THEME DIALOG ====================
+  
   Future<void> _showThemeDialog() async {
     final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
 
@@ -253,7 +463,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // 🔐 Password Change Function
+  // ==================== PASSWORD CHANGE ====================
+  
   Future<void> _changePassword({
     required String currentPassword,
     required String newPassword,
@@ -299,7 +510,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  // Change Password Dialog
   Future<void> _showChangePasswordDialog() async {
     final currentPasswordController = TextEditingController();
     final newPasswordController = TextEditingController();
@@ -389,7 +599,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // Delete Account Dialog
+  // ==================== DELETE ACCOUNT ====================
+  
   Future<void> _showDeleteAccountDialog() async {
     final passwordController = TextEditingController();
     final formKey = GlobalKey<FormState>();
@@ -501,7 +712,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // Delete Account Function
   Future<void> _deleteAccount(String password) async {
     if (!mounted) return;
 
@@ -559,8 +769,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final themeProvider = Provider.of<ThemeProvider>(context);
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Settings'),
@@ -577,7 +785,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           ListView(
             children: [
-              // Profile Section
+              // ==================== PROFILE SECTION ====================
               _buildSectionHeader('Profile', Icons.person),
               ListTile(
                 leading: CircleAvatar(
@@ -588,14 +796,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 subtitle: const Text('Change your name, bio, photos'),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                 onTap: () {
-                  // ✅ Auto-save before navigating
                   _saveSettingsIfChanged();
                   DefaultTabController.of(context).animateTo(3);
                 },
               ),
               const Divider(),
 
-              // 🌙 Appearance Section (Theme)
+              // ==================== APPEARANCE SECTION ====================
               _buildSectionHeader('Appearance', Icons.palette),
               ListTile(
                 leading: Container(
@@ -634,7 +841,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               const Divider(),
 
-              // ✅ UPDATED: Account Security Section with Verification UI
+              // ==================== ACCOUNT SECURITY SECTION ====================
               _buildSectionHeader('Account Security', Icons.security),
               ListTile(
                 leading: Container(
@@ -686,7 +893,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Refresh button to check verification status
                     IconButton(
                       icon: const Icon(Icons.refresh, size: 20),
                       onPressed: _checkVerificationStatus,
@@ -702,7 +908,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               const Divider(),
 
-              // Privacy Section
+              // ==================== PRIVACY SECTION ====================
               _buildSectionHeader('Privacy', Icons.lock),
               SwitchListTile(
                 title: const Text('Show Online Status'),
@@ -730,7 +936,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   setState(() {
                     _showProfile = value;
                   });
-                  // ✅ Auto-save when toggled
                   _saveSettings(showSnackBar: false);
                 },
               ),
@@ -757,7 +962,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               const Divider(),
 
-              // Account Section
+              // ==================== ACCOUNT SECTION ====================
               _buildSectionHeader('Account', Icons.account_circle),
               ListTile(
                 leading: Container(
@@ -792,8 +997,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               const Divider(),
 
-              // App Info
+              // ==================== APP INFO SECTION ====================
               _buildSectionHeader('App Info', Icons.info),
+
+              // User Guide
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.pink.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.menu_book, color: Colors.pink),
+                ),
+                title: const Text('📖 User Guide'),
+                subtitle: const Text('Learn how to use Spark'),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: _showUserGuide,
+              ),
+
+              // Version
               ListTile(
                 leading: Container(
                   padding: const EdgeInsets.all(8),
@@ -804,8 +1027,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: const Icon(Icons.info, color: Colors.pink),
                 ),
                 title: const Text('Version'),
-                subtitle: const Text('1.0.3+4'),
+                subtitle: const Text('1.0.4'),
               ),
+
+              // Privacy Policy
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.pink.shade50,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.privacy_tip, color: Colors.pink),
+                ),
+                title: const Text('Privacy Policy'),
+                subtitle: const Text('Read our privacy policy'),
+                trailing: const Icon(Icons.open_in_new, size: 16),
+                onTap: _openPrivacyPolicy,
+              ),
+
+              // ❌ Delete Account Data - REMOVED
+
               const SizedBox(height: 24),
             ],
           ),
